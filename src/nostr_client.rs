@@ -1,0 +1,335 @@
+//! Nostr client for publishing and retrieving UBA data
+
+use crate::error::{Result, UbaError};
+use crate::types::BitcoinAddresses;
+use crate::encryption::{encrypt_if_enabled, decrypt_if_needed};
+
+use nostr::{
+    EventBuilder, EventId, Keys, Kind, Tag,
+    Filter, Url,
+};
+use nostr_sdk::Client;
+use serde_json;
+use std::time::Duration;
+use tokio::time::timeout;
+use std::str::FromStr;
+
+/// Nostr client for UBA operations
+pub struct NostrClient {
+    client: Client,
+    keys: Keys,
+    timeout_duration: Duration,
+}
+
+impl NostrClient {
+    /// Create a new Nostr client with generated keys
+    pub fn new(timeout_seconds: u64) -> Result<Self> {
+        let keys = Keys::generate();
+        let client = Client::new(&keys);
+        
+        Ok(Self {
+            client,
+            keys,
+            timeout_duration: Duration::from_secs(timeout_seconds),
+        })
+    }
+
+    /// Create a new Nostr client with provided keys
+    pub fn with_keys(keys: Keys, timeout_seconds: u64) -> Self {
+        let client = Client::new(&keys);
+        
+        Self {
+            client,
+            keys,
+            timeout_duration: Duration::from_secs(timeout_seconds),
+        }
+    }
+
+    /// Connect to the specified relay URLs
+    pub async fn connect_to_relays(&self, relay_urls: &[String]) -> Result<()> {
+        for url_str in relay_urls {
+            let url = Url::parse(url_str)
+                .map_err(|_| UbaError::InvalidRelayUrl(url_str.clone()))?;
+            
+            self.client.add_relay(url).await
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+        }
+
+        // Connect to all added relays
+        self.client.connect().await;
+        
+        // Wait a moment for connections to establish
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        
+        Ok(())
+    }
+
+    /// Publish Bitcoin addresses as a Nostr event and return the event ID
+    pub async fn publish_addresses(&self, addresses: &BitcoinAddresses, encrypt: bool) -> Result<String> {
+        let content = if encrypt {
+            // For now, we'll just serialize as JSON
+            // TODO: Implement proper encryption using Nostr's NIP-04 or similar
+            serde_json::to_string(addresses)?
+        } else {
+            serde_json::to_string(addresses)?
+        };
+
+        // Create a custom event for UBA data
+        // Using Kind 1000-9999 range for application-specific events
+        let kind = Kind::Custom(30000); // Parametrized replaceable event
+        
+        let mut tags = Vec::new();
+        
+        // Add a tag to identify this as UBA data
+        tags.push(Tag::parse(&["uba", "bitcoin-addresses"])
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+
+        // Add metadata tags if available
+        if let Some(metadata) = &addresses.metadata {
+            if let Some(label) = &metadata.label {
+                tags.push(Tag::parse(&["label", label])
+                    .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+            }
+        }
+
+        // Add version tag
+        tags.push(Tag::parse(&["version", &addresses.version.to_string()])
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+
+        let event = EventBuilder::new(kind, content, tags)
+            .to_event(&self.keys)
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        // Publish the event with timeout
+        let event_id = timeout(self.timeout_duration, self.client.send_event(event))
+            .await
+            .map_err(|_| UbaError::Timeout)?
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        Ok(event_id.to_hex())
+    }
+
+    /// Publish Bitcoin addresses with optional encryption
+    pub async fn publish_addresses_with_encryption(
+        &self, 
+        addresses: &BitcoinAddresses, 
+        encryption_key: Option<&[u8; 32]>
+    ) -> Result<String> {
+        // Serialize addresses to JSON
+        let json_content = serde_json::to_string(addresses)?;
+
+        // Encrypt if key is provided
+        let content = encrypt_if_enabled(&json_content, encryption_key)?;
+
+        // Create a custom event for UBA data
+        let kind = Kind::Custom(30000); // Parametrized replaceable event
+        
+        let mut tags = Vec::new();
+        
+        // Add a tag to identify this as UBA data
+        tags.push(Tag::parse(&["uba", "bitcoin-addresses"])
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+
+        // Add encryption indicator if encrypted
+        if encryption_key.is_some() {
+            tags.push(Tag::parse(&["encrypted", "true"])
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+        }
+
+        // Add metadata tags if available
+        if let Some(metadata) = &addresses.metadata {
+            if let Some(label) = &metadata.label {
+                tags.push(Tag::parse(&["label", label])
+                    .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+            }
+        }
+
+        // Add version tag
+        tags.push(Tag::parse(&["version", &addresses.version.to_string()])
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?);
+
+        let event = EventBuilder::new(kind, content, tags)
+            .to_event(&self.keys)
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        // Publish the event with timeout
+        let event_id = timeout(self.timeout_duration, self.client.send_event(event))
+            .await
+            .map_err(|_| UbaError::Timeout)?
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        Ok(event_id.to_hex())
+    }
+
+    /// Retrieve Bitcoin addresses from a Nostr event ID
+    pub async fn retrieve_addresses(&self, event_id_hex: &str) -> Result<BitcoinAddresses> {
+        let event_id = EventId::from_hex(event_id_hex)
+            .map_err(|e| UbaError::InvalidUbaFormat(format!("Invalid event ID: {}", e)))?;
+
+        // Create a filter to find the specific event
+        let filter = Filter::new()
+            .id(event_id)
+            .kind(Kind::Custom(30000))
+            .limit(1);
+
+        // Subscribe to the filter with timeout
+        let events = timeout(
+            self.timeout_duration,
+            self.client.get_events_of(vec![filter], Some(self.timeout_duration))
+        )
+        .await
+        .map_err(|_| UbaError::Timeout)?
+        .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        if events.is_empty() {
+            return Err(UbaError::NoteNotFound(event_id_hex.to_string()));
+        }
+
+        let event = &events[0];
+        
+        // Verify this is UBA data by checking tags
+        let has_uba_tag = event.tags.iter().any(|tag| {
+            let tag_vec = tag.as_vec();
+            tag_vec.len() >= 2 && tag_vec[0] == "uba" && tag_vec[1] == "bitcoin-addresses"
+        });
+
+        if !has_uba_tag {
+            return Err(UbaError::InvalidUbaFormat("Event is not UBA data".to_string()));
+        }
+
+        // Deserialize the content
+        let addresses: BitcoinAddresses = serde_json::from_str(&event.content)
+            .map_err(|e| UbaError::Json(e))?;
+
+        Ok(addresses)
+    }
+
+    /// Retrieve Bitcoin addresses with optional decryption
+    pub async fn retrieve_addresses_with_decryption(
+        &self, 
+        event_id_hex: &str,
+        encryption_key: Option<&[u8; 32]>
+    ) -> Result<BitcoinAddresses> {
+        let event_id = EventId::from_hex(event_id_hex)
+            .map_err(|e| UbaError::InvalidUbaFormat(format!("Invalid event ID: {}", e)))?;
+
+        // Create a filter to find the specific event
+        let filter = Filter::new()
+            .id(event_id)
+            .kind(Kind::Custom(30000))
+            .limit(1);
+
+        // Subscribe to the filter with timeout
+        let events = timeout(
+            self.timeout_duration,
+            self.client.get_events_of(vec![filter], Some(self.timeout_duration))
+        )
+        .await
+        .map_err(|_| UbaError::Timeout)?
+        .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        if events.is_empty() {
+            return Err(UbaError::NoteNotFound(event_id_hex.to_string()));
+        }
+
+        let event = &events[0];
+        
+        // Verify this is UBA data by checking tags
+        let has_uba_tag = event.tags.iter().any(|tag| {
+            let tag_vec = tag.as_vec();
+            tag_vec.len() >= 2 && tag_vec[0] == "uba" && tag_vec[1] == "bitcoin-addresses"
+        });
+
+        if !has_uba_tag {
+            return Err(UbaError::InvalidUbaFormat("Event is not UBA data".to_string()));
+        }
+
+        // Check if content is encrypted
+        let is_encrypted = event.tags.iter().any(|tag| {
+            let tag_vec = tag.as_vec();
+            tag_vec.len() >= 2 && tag_vec[0] == "encrypted" && tag_vec[1] == "true"
+        });
+
+        // Decrypt if needed
+        let content = if is_encrypted || encryption_key.is_some() {
+            decrypt_if_needed(&event.content, encryption_key)?
+        } else {
+            event.content.clone()
+        };
+
+        // Deserialize the content
+        let addresses: BitcoinAddresses = serde_json::from_str(&content)
+            .map_err(|e| UbaError::Json(e))?;
+
+        Ok(addresses)
+    }
+
+    /// Get the public key of this client
+    pub fn public_key(&self) -> String {
+        self.keys.public_key().to_hex()
+    }
+
+    /// Disconnect from all relays
+    pub async fn disconnect(&self) {
+        let _ = self.client.disconnect().await;
+    }
+}
+
+/// Generate a deterministic Nostr key from a seed
+pub fn generate_nostr_keys_from_seed(seed: &str) -> Result<Keys> {
+    // Use the seed to generate deterministic keys
+    // This ensures the same seed always produces the same Nostr identity
+    use bitcoin::hashes::{Hash, sha256};
+    
+    let seed_bytes = if seed.len() == 64 {
+        // Assume hex-encoded
+        hex::decode(seed)?
+    } else {
+        // Use BIP39 seed
+        let mnemonic = bip39::Mnemonic::from_str(seed)?;
+        mnemonic.to_seed("").to_vec()
+    };
+    
+    // Hash the seed to get a 32-byte key
+    let hash = sha256::Hash::hash(&seed_bytes);
+    let secret_key = nostr::SecretKey::from_slice(hash.as_ref())
+        .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+    
+    Ok(Keys::new(secret_key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::AddressType;
+
+    #[tokio::test]
+    async fn test_nostr_client_creation() {
+        let client = NostrClient::new(10);
+        assert!(client.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_deterministic_key_generation() {
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let keys1 = generate_nostr_keys_from_seed(seed);
+        let keys2 = generate_nostr_keys_from_seed(seed);
+        
+        assert!(keys1.is_ok());
+        assert!(keys2.is_ok());
+        assert_eq!(keys1.unwrap().public_key(), keys2.unwrap().public_key());
+    }
+
+    #[test]
+    fn test_bitcoin_addresses_serialization() {
+        let mut addresses = BitcoinAddresses::new();
+        addresses.add_address(AddressType::P2PKH, "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2".to_string());
+        addresses.add_address(AddressType::P2WPKH, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string());
+        
+        let json = serde_json::to_string(&addresses);
+        assert!(json.is_ok());
+        
+        let deserialized: serde_json::Result<BitcoinAddresses> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok());
+    }
+} 
