@@ -9,36 +9,106 @@ repository = "https://github.com/yourusername/uba"
 keywords = ["bitcoin", "nostr", "crypto", "address", "wallet"]
 categories = ["cryptography::cryptocurrencies"]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-bitcoin = "0.31"
-nostr = "0.32"
-nostr-sdk = "0.32"
+# Core dependencies (WASM compatible)
+bitcoin = { version = "0.31", default-features = false, features = ["std", "serde", "base64"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
 thiserror = "1.0"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "js"] }
 bip39 = "2.0"
 hex = "0.4"
 url = "2.5"
 urlencoding = "2.1"
 
-# Liquid sidechain support
-elements = "0.24"
-
-# Lightning Network support  
-lightning = "0.0.122"
-lightning-invoice = "0.31"
-
-# Additional crypto utilities
-secp256k1 = "0.28"
-
-# Encryption support (NIP-44 compatible)
+# Crypto utilities (WASM compatible)
+# Use k256 for WASM builds (pure Rust), secp256k1 for native builds
+k256 = { version = "0.13", features = ["ecdsa", "sha256"], optional = true }
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
 sha2 = "0.10"
 rand = "0.8"
 base64 = "0.21"
 
+# WebAssembly specific dependencies
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"], optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = [
+  "console",
+  "Window",
+  "Document",
+], optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+wee_alloc = { version = "0.4", optional = true }
+getrandom = { version = "0.2", features = ["js"], optional = true }
+
+# Native-only dependencies (not compatible with WASM)
+secp256k1 = { version = "0.28", features = ["rand", "global-context"], default-features = false, optional = true }
+tokio = { version = "1.0", features = ["full"], optional = true }
+nostr = { version = "0.32", optional = true }
+nostr-sdk = { version = "0.32", optional = true }
+elements = { version = "0.24", optional = true }
+lightning = { version = "0.0.122", optional = true }
+lightning-invoice = { version = "0.31", optional = true }
+
 [dev-dependencies]
+# No optional dev-dependencies allowed
+
+[features]
+default = ["native"]
+native = [
+    "secp256k1",
+    "tokio", 
+    "nostr", 
+    "nostr-sdk", 
+    "elements", 
+    "lightning", 
+    "lightning-invoice"
+]
+wasm = [
+    "k256",
+    "wasm-bindgen", 
+    "js-sys", 
+    "web-sys", 
+    "console_error_panic_hook", 
+    "wee_alloc", 
+    "getrandom"
+]
+
+# Target-specific dependencies for native builds
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bitcoin = "0.31"
+secp256k1 = { version = "0.28", features = ["rand", "global-context"], default-features = false }
+tokio = { version = "1.0", features = ["full"] }
+nostr = "0.32"
+nostr-sdk = "0.32"
+elements = "0.24"
+lightning = "0.0.122"
+lightning-invoice = "0.31"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 tokio-test = "0.4"
+
+# Target-specific dependencies for WASM builds
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bitcoin = { version = "0.31", default-features = false, features = ["std", "serde", "base64"] }
+k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+  "console",
+  "Window",
+  "Document",
+] }
+console_error_panic_hook = "0.1"
+wee_alloc = "0.4"
+getrandom = { version = "0.2", features = ["js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+wee-alloc = true

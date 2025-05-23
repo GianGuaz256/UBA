@@ -5,7 +5,7 @@
 //! - Parse and display the retrieved information
 //! - Handle different relay scenarios
 
-use uba::{NostrClient, AddressType};
+use uba::AddressType;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
