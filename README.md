@@ -2,6 +2,10 @@
 
 [![Crates.io](https://img.shields.io/crates/v/uba.svg)](https://crates.io/crates/uba) [![Documentation](https://docs.rs/uba/badge.svg)](https://docs.rs/uba) [![License](https://img.shields.io/crates/l/uba.svg)](LICENSE)
 
+<div align="center">
+  <img src="docs/images/uba.png" alt="UBA - Unified Bitcoin Address" width="600"/>
+</div>
+
 A Rust library that enables the creation and retrieval of **Unified Bitcoin Addresses (UBA)** - single, concise strings that unify a user's Bitcoin addresses across **all Bitcoin layers**: Layer 1 (L1), Liquid sidechain, and Lightning Network using Nostr relays for decentralized storage.
 
 ## 🎯 What is a UBA?
