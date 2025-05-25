@@ -29,6 +29,7 @@ UBA:<NostrEventID>&label=<optional-label>
 - **📡 Public Relay Network**: Curated list of reliable Nostr relays
 - **⚙️ Configurable**: Flexible address counts and custom relay support
 - **🔧 Extensible**: Ready for future Bitcoin protocols and improvements
+- **🔄 WebAssembly Bindings**: JavaScript/TypeScript support for web and Node.js applications
 
 ## 🚀 Quick Start
 
@@ -384,3 +385,94 @@ This library is experimental and should be used with caution in production envir
 ---
 
 **Made with ❤️ for the complete Bitcoin ecosystem** 
+
+## WebAssembly Bindings
+
+UBA includes comprehensive WebAssembly bindings for JavaScript and TypeScript applications. The bindings are organized in a dedicated directory structure for better maintainability and future language support.
+
+### 📁 Bindings Organization
+
+```
+bindings/
+├── wasm/                   # WebAssembly (JavaScript/TypeScript)
+├── python/                 # Python bindings (planned)
+├── c/                      # C/C++ bindings (planned)
+└── README.md               # Bindings overview
+```
+
+### 🚀 Quick Start (JavaScript/TypeScript)
+
+```bash
+# Build the WASM bindings
+cd bindings/wasm/
+./build.sh
+
+# Use in your project
+cp -r dist/typescript/* your-project/
+```
+
+```typescript
+import { generateAddresses, parseUbaString } from './index';
+
+// Generate addresses locally (WASM limitation: no Nostr networking)
+const addresses = await generateAddresses({
+    seed: "your-seed-phrase",
+    label: "my-wallet",
+    network: 1 // Testnet
+});
+
+// Parse UBA strings
+const parsed = parseUbaString("UBA:1234...&label=test");
+```
+
+### 📚 Documentation
+
+- **WebAssembly**: [`bindings/wasm/README.md`](bindings/wasm/README.md)
+- **All Bindings**: [`bindings/README.md`](bindings/README.md)
+
+### ⚠️ Current Limitations
+
+The WASM bindings currently have limitations due to WebAssembly compilation issues:
+
+- **✅ Available**: Local address generation, UBA parsing, encryption utilities
+- **❌ Not Available**: Nostr relay networking (requires native Rust library)
+
+### 🔧 WASM Compilation Fix
+
+If you encounter compilation issues:
+
+```bash
+# Install LLVM with WASM support (macOS)
+brew install llvm
+export AR=/opt/homebrew/opt/llvm/bin/llvm-ar
+export CC=/opt/homebrew/opt/llvm/bin/clang
+
+# Then rebuild
+cd bindings/wasm/ && ./build.sh
+```
+
+## Installation
+
+### Rust
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+uba = "0.1.0"
+```
+
+### JavaScript/TypeScript
+
+Copy the appropriate package from `dist/` to your project:
+
+```bash
+# For web applications
+cp -r dist/web/* your-project/
+
+# For Node.js applications  
+cp -r dist/nodejs/* your-project/
+
+# For TypeScript projects
+cp -r dist/typescript/* your-project/
+``` 

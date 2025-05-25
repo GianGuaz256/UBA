@@ -1,0 +1,154 @@
+# UBA WebAssembly Bindings - Build Artifacts
+
+# ===========================================
+# wasm-pack Generated Packages
+# ===========================================
+
+# Main packages for different targets
+pkg/
+pkg-web/
+pkg-node/
+pkg-nodejs/
+pkg-bundler/
+
+# Alternative naming patterns
+*-pkg/
+wasm-pkg/
+
+# ===========================================
+# Distribution and Build Outputs
+# ===========================================
+
+# Distribution packages
+dist/
+
+# Build artifacts
+target/
+
+# Generated examples
+examples/dist/
+
+# ===========================================
+# Node.js and npm
+# ===========================================
+
+# Dependencies
+node_modules/
+
+# Lock files (optional - you might want to commit these)
+package-lock.json
+yarn.lock
+
+# npm cache
+.npm/
+.yarn-cache/
+
+# ===========================================
+# TypeScript Compilation
+# ===========================================
+
+# Compiled JavaScript from TypeScript
+src/**/*.js
+src/**/*.js.map
+types/**/*.js
+types/**/*.js.map
+
+# TypeScript declaration map files
+**/*.d.ts.map
+
+# ===========================================
+# Testing and Coverage
+# ===========================================
+
+# Test artifacts
+.nyc_output/
+coverage/
+test-results/
+
+# Jest
+jest-cache/
+
+# Mocha
+.mocha-cache/
+
+# ===========================================
+# Development Tools
+# ===========================================
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+.tmp/
+tmp/
+
+# ===========================================
+# Documentation Build
+# ===========================================
+
+# Generated documentation
+docs/build/
+site/
+
+# API documentation artifacts
+api-docs/
+
+# ===========================================
+# Environment and Configuration
+# ===========================================
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Local configuration
+config.local.json
+
+# ===========================================
+# Logs and Debug
+# ===========================================
+
+# Log files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Debug artifacts
+debug/
+.debug/
+
+# ===========================================
+# Rust Artifacts (WASM-specific)
+# ===========================================
+
+# Backup files from rustfmt
+**/*.rs.bk
+
+# ===========================================
+# Keep Important Files
+# ===========================================
+
+# Always keep these important files
+!README.md
+!Cargo.toml
+!package.json
+!build.sh
+!src/
+!types/
+!examples/*.js
+!examples/*.ts
+!examples/*.html 

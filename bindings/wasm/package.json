@@ -1,0 +1,50 @@
+{
+  "name": "uba-wasm",
+  "version": "0.1.0",
+  "description": "WebAssembly bindings for the UBA (Unified Bitcoin Addresses) library",
+  "main": "pkg/uba.js",
+  "types": "pkg/uba.d.ts",
+  "files": [
+    "pkg/"
+  ],
+  "keywords": [
+    "bitcoin",
+    "nostr",
+    "crypto",
+    "address",
+    "wallet",
+    "wasm",
+    "webassembly",
+    "unified",
+    "bitcoin",
+    "lightning",
+    "liquid"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/uba.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/uba/issues"
+  },
+  "homepage": "https://github.com/yourusername/uba#readme",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir pkg --release",
+    "build:nodejs": "wasm-pack build --target nodejs --out-dir pkg-node --release",
+    "build:bundler": "wasm-pack build --target bundler --out-dir pkg-bundler --release",
+    "build:all": "npm run build && npm run build:nodejs && npm run build:bundler",
+    "test": "wasm-pack test --headless --chrome",
+    "test:node": "wasm-pack test --node",
+    "clean": "rm -rf pkg pkg-node pkg-bundler target",
+    "dev": "wasm-pack build --dev --target web --out-dir pkg",
+    "publish:npm": "cd pkg && npm publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 

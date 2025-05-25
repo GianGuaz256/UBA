@@ -1,0 +1,236 @@
+# UBA Language Bindings - Build Artifacts
+
+# ===========================================
+# WebAssembly (JavaScript/TypeScript)
+# ===========================================
+
+# wasm-pack generated packages
+wasm/pkg/
+wasm/pkg-*/
+
+# Distribution packages
+wasm/dist/
+
+# Node.js dependencies and artifacts
+wasm/node_modules/
+wasm/package-lock.json
+wasm/yarn.lock
+
+# TypeScript compilation artifacts
+wasm/**/*.js
+wasm/**/*.js.map
+wasm/**/*.d.ts.map
+
+# Build artifacts
+wasm/target/
+
+# Generated examples
+wasm/examples/dist/
+
+# Test artifacts
+wasm/.nyc_output/
+wasm/coverage/
+
+# ===========================================
+# Python Bindings (PyO3)
+# ===========================================
+
+# Python bytecode
+python/**/__pycache__/
+python/**/*.pyc
+python/**/*.pyo
+python/**/*.pyd
+
+# Python distribution packages
+python/build/
+python/dist/
+python/**/*.egg-info/
+python/.eggs/
+
+# Virtual environments
+python/venv/
+python/env/
+python/.env
+
+# Python testing
+python/.pytest_cache/
+python/.coverage
+python/htmlcov/
+
+# maturin build artifacts
+python/target/
+
+# ===========================================
+# C/C++ Bindings
+# ===========================================
+
+# Compiled object files
+c/**/*.o
+c/**/*.obj
+c/**/*.so
+c/**/*.dylib
+c/**/*.dll
+c/**/*.a
+c/**/*.lib
+
+# Build directories
+c/build/
+c/cmake-build-*/
+
+# Generated headers (from cbindgen)
+c/include/generated/
+
+# CMake artifacts
+c/CMakeFiles/
+c/CMakeCache.txt
+c/cmake_install.cmake
+
+# ===========================================
+# Java Bindings (JNI)
+# ===========================================
+
+# Compiled Java classes
+java/**/*.class
+
+# Java packages
+java/**/*.jar
+java/**/*.war
+java/**/*.ear
+
+# Maven artifacts
+java/target/
+java/.mvn/
+
+# Gradle artifacts
+java/build/
+java/.gradle/
+
+# IDE artifacts
+java/.idea/
+java/**/*.iml
+
+# ===========================================
+# Rust Common (for all bindings)
+# ===========================================
+
+# Rust compilation artifacts
+**/target/
+**/*.rs.bk
+
+# Cargo lock files for libraries (keep for applications)
+# Uncomment if you want to ignore all Cargo.lock files
+# **/Cargo.lock
+
+# ===========================================
+# General Development Artifacts
+# ===========================================
+
+# Temporary files
+**/.tmp/
+**/tmp/
+**/*.tmp
+**/*.swp
+**/*.swo
+
+# IDE and editor files
+**/.vscode/
+**/.idea/
+**/*.sublime-*
+**/.DS_Store
+
+# Log files
+**/*.log
+**/logs/
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Documentation build artifacts
+**/docs/build/
+**/site/
+
+# ===========================================
+# Language-Specific Package Managers
+# ===========================================
+
+# npm/yarn (JavaScript)
+**/node_modules/
+**/package-lock.json
+**/yarn.lock
+
+# pip (Python)
+**/.pip-cache/
+
+# Maven (Java)
+**/.m2/repository/
+
+# Gradle (Java)
+**/.gradle/
+
+# ===========================================
+# Operating System Artifacts
+# ===========================================
+
+# macOS
+**/.DS_Store
+**/._*
+
+# Windows
+**/Thumbs.db
+**/Desktop.ini
+
+# Linux
+**/*~
+
+# ===========================================
+# Archive and Backup Files
+# ===========================================
+
+**/*.zip
+**/*.tar.gz
+**/*.tar.bz2
+**/*.7z
+**/*.bak
+**/*.backup
+
+# ===========================================
+# Future Language Bindings
+# ===========================================
+
+# Go bindings
+go/vendor/
+go/**/*.exe
+
+# C# bindings
+csharp/bin/
+csharp/obj/
+csharp/**/*.dll
+csharp/**/*.pdb
+
+# Swift bindings
+swift/.build/
+swift/**/*.swiftmodule
+
+# Kotlin bindings
+kotlin/build/
+
+# Ruby bindings
+ruby/pkg/
+ruby/**/*.gem
+
+# ===========================================
+# Keep Important Files
+# ===========================================
+
+# Always keep these files even if they match patterns above
+!**/README.md
+!**/Cargo.toml
+!**/package.json
+!**/pyproject.toml
+!**/setup.py
+!**/CMakeLists.txt
+!**/pom.xml
+!**/build.gradle
+!**/Makefile 

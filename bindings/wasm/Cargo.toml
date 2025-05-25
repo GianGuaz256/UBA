@@ -1,0 +1,45 @@
+[package]
+name = "uba-wasm"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "WebAssembly bindings for the UBA (Unified Bitcoin Addresses) library"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/uba"
+keywords = ["bitcoin", "nostr", "crypto", "address", "wallet", "wasm", "webassembly"]
+categories = ["cryptography::cryptocurrencies", "wasm"]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# Reference to the main UBA library
+uba = { path = "../..", features = ["wasm"], default-features = false }
+
+# WebAssembly specific dependencies
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+  "console",
+  "Window",
+  "Document",
+] }
+console_error_panic_hook = "0.1"
+wee_alloc = "0.4"
+
+# Crypto and utility dependencies (WASM compatible)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+urlencoding = "2.1"
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[features]
+default = []
+
+[package.metadata.wasm-pack.profile.release]
+wee-alloc = true 

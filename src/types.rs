@@ -293,39 +293,57 @@ pub struct UbaRetrievalRequest {
 /// These relays are selected for reliability and geographical distribution.
 /// Users can override this list by setting custom_relays in UbaConfig.
 pub fn default_public_relays() -> Vec<String> {
-    vec![
-        // Reliable relays with good uptime and performance
-        "wss://relay.damus.io".to_string(),           // Damus (Cloudflare)
-        "wss://nos.lol".to_string(),                  // NOS (Hetzner)
-        "wss://relay.snort.social".to_string(),       // Snort (Cloudflare)
-        "wss://nostr.wine".to_string(),               // Nostr Wine (Cloudflare)
-        "wss://relay.nostr.band".to_string(),         // Nostr Band (Hetzner) - supports search
-        "wss://nostr.mutinywallet.com".to_string(),   // Mutiny Wallet (Amazon)
-        "wss://relay.primal.net".to_string(),         // Primal (Cloudflare)
-        "wss://relay.nostrati.com".to_string(),       // Nostrati (Digital Ocean)
-        "wss://nostr.sethforprivacy.com".to_string(), // Seth for Privacy (Privacy-focused)
-        "wss://offchain.pub".to_string(),             // Offchain Pub (MULTACOM)
-        "wss://relay.nostrplebs.com".to_string(),     // Nostr Plebs (Hetzner)
-        "wss://purplepag.es".to_string(),             // Purple Pages (Constant Company)
-    ]
+    DEFAULT_PUBLIC_RELAYS.iter().map(|s| s.to_string()).collect()
 }
 
 /// Extended public relay list for high-availability scenarios
 /// 
 /// This includes additional relays for redundancy and broader network coverage.
 pub fn extended_public_relays() -> Vec<String> {
-    let mut relays = default_public_relays();
-    relays.extend(vec![
-        "wss://relay.bitcoinpark.com".to_string(),    // Bitcoin Park (Fastly)
-        "wss://lightningrelay.com".to_string(),       // Lightning Relay (IONOS)
-        "wss://relay.orangepill.dev".to_string(),     // Orange Pill (Oracle)
-        "wss://nostr.bitcoiner.social".to_string(),   // Bitcoiner Social (MULTACOM)
-        "wss://relay.exit.pub".to_string(),           // Exit Pub (Amazon)
-        "wss://purplerelay.com".to_string(),          // Purple Relay (Fastly)
-        "wss://brb.io".to_string(),                   // BRB (Cloudflare)
-        "wss://nostr.milou.lol".to_string(),          // Milou (Cloudflare)
-        "wss://relayable.org".to_string(),            // Relayable (Hetzner)
-        "wss://relay.mostr.pub".to_string(),          // Mostr Pub (Cloudflare)
-    ]);
-    relays
-} 
+    EXTENDED_PUBLIC_RELAYS.iter().map(|s| s.to_string()).collect()
+}
+
+/// Default public Nostr relays as a constant array
+pub const DEFAULT_PUBLIC_RELAYS: &[&str] = &[
+    // Reliable relays with good uptime and performance
+    "wss://relay.damus.io",           // Damus (Cloudflare)
+    "wss://nos.lol",                  // NOS (Hetzner)
+    "wss://relay.snort.social",       // Snort (Cloudflare)
+    "wss://nostr.wine",               // Nostr Wine (Cloudflare)
+    "wss://relay.nostr.band",         // Nostr Band (Hetzner) - supports search
+    "wss://nostr.mutinywallet.com",   // Mutiny Wallet (Amazon)
+    "wss://relay.primal.net",         // Primal (Cloudflare)
+    "wss://relay.nostrati.com",       // Nostrati (Digital Ocean)
+    "wss://nostr.sethforprivacy.com", // Seth for Privacy (Privacy-focused)
+    "wss://offchain.pub",             // Offchain Pub (MULTACOM)
+    "wss://relay.nostrplebs.com",     // Nostr Plebs (Hetzner)
+    "wss://purplepag.es",             // Purple Pages (Constant Company)
+];
+
+/// Extended public Nostr relays as a constant array
+pub const EXTENDED_PUBLIC_RELAYS: &[&str] = &[
+    // Default relays
+    "wss://relay.damus.io",           // Damus (Cloudflare)
+    "wss://nos.lol",                  // NOS (Hetzner)
+    "wss://relay.snort.social",       // Snort (Cloudflare)
+    "wss://nostr.wine",               // Nostr Wine (Cloudflare)
+    "wss://relay.nostr.band",         // Nostr Band (Hetzner) - supports search
+    "wss://nostr.mutinywallet.com",   // Mutiny Wallet (Amazon)
+    "wss://relay.primal.net",         // Primal (Cloudflare)
+    "wss://relay.nostrati.com",       // Nostrati (Digital Ocean)
+    "wss://nostr.sethforprivacy.com", // Seth for Privacy (Privacy-focused)
+    "wss://offchain.pub",             // Offchain Pub (MULTACOM)
+    "wss://relay.nostrplebs.com",     // Nostr Plebs (Hetzner)
+    "wss://purplepag.es",             // Purple Pages (Constant Company)
+    // Additional relays for redundancy
+    "wss://relay.bitcoinpark.com",    // Bitcoin Park (Fastly)
+    "wss://lightningrelay.com",       // Lightning Relay (IONOS)
+    "wss://relay.orangepill.dev",     // Orange Pill (Oracle)
+    "wss://nostr.bitcoiner.social",   // Bitcoiner Social (MULTACOM)
+    "wss://relay.exit.pub",           // Exit Pub (Amazon)
+    "wss://purplerelay.com",          // Purple Relay (Fastly)
+    "wss://brb.io",                   // BRB (Cloudflare)
+    "wss://nostr.milou.lol",          // Milou (Cloudflare)
+    "wss://relayable.org",            // Relayable (Hetzner)
+    "wss://relay.mostr.pub",          // Mostr Pub (Cloudflare)
+]; 
