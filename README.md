@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/uba.svg)](https://crates.io/crates/uba) [![Documentation](https://docs.rs/uba/badge.svg)](https://docs.rs/uba) [![License](https://img.shields.io/crates/l/uba.svg)](LICENSE)
 
 <div align="center">
-  <img src="docs/images/uba.png" alt="UBA - Unified Bitcoin Address" width="600"/>
+  <img src="docs/images/uba.png" alt="UBA - Unified Bitcoin Address" width="100%"/>
 </div>
 
 A Rust library that enables the creation and retrieval of **Unified Bitcoin Addresses (UBA)** - single, concise strings that unify a user's Bitcoin addresses across **all Bitcoin layers**: Layer 1 (L1), Liquid sidechain, and Lightning Network using Nostr relays for decentralized storage.
@@ -310,9 +310,8 @@ The library includes comprehensive examples:
 - **Basic Usage**: Multi-layer address generation and retrieval
 - **Encryption & Relays**: Demonstrates encryption and custom relay configuration
 - **CLI with Encryption**: Command-line interface with encryption support
-- **Configurable Counts**: Custom address count configuration
-- **Offline Generation**: Generate addresses without network access
-- **Layer-Specific Access**: Access addresses by Bitcoin layer/protocol
+- **Encryption Demo**: Offline encryption demonstration
+- **Show Addresses**: Display addresses across all Bitcoin layers
 - **Retrieve from Nostr ID**: Retrieve UBA data from a known Nostr event ID
 
 ```bash
@@ -326,8 +325,11 @@ cargo run --example encryption_and_relays
 cargo run --example cli_with_encryption -- generate --passphrase "my-secret"
 cargo run --example cli_with_encryption -- retrieve --uba "UBA:..." --passphrase "my-secret"
 
-# Configurable address counts
-cargo run --example configurable_counts
+# Offline encryption demonstration
+cargo run --example encryption_demo
+
+# Show addresses across all layers
+cargo run --example show_addresses
 
 # Retrieve from Nostr ID
 cargo run --example retrieve_from_nostr_id
@@ -361,6 +363,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] ChaCha20Poly1305 encryption support
 - [x] Public relay network with custom relay support
 - [x] Configurable address counts per layer
+- [x] Comprehensive examples and documentation
 - [ ] BOLT12 Lightning offers
 - [ ] Lightning addresses (email-like format)
 - [ ] NIP-04/NIP-17 encryption implementation
@@ -369,6 +372,8 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [ ] CLI tool for UBA management
 - [ ] Python/JavaScript bindings
 - [ ] Mobile SDK (React Native/Flutter)
+- [ ] Hardware wallet integration
+- [ ] Multi-signature address support
 
 ## 🔗 Related Projects
 

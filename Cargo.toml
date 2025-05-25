@@ -1,13 +1,15 @@
 [package]
 name = "uba"
 version = "0.1.0"
-edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+edition = "2025"
+authors = ["GianGuaz256"]
 description = "A Rust library for creating and retrieving Unified Bitcoin Addresses (UBA) using Nostr relays"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/uba"
+repository = "https://github.com/GianGuaz256/UBA"
 keywords = ["bitcoin", "nostr", "crypto", "address", "wallet"]
 categories = ["cryptography::cryptocurrencies"]
+readme = "README.md"
+documentation = "https://github.com/GianGuaz256/UBA"
 
 [dependencies]
 bitcoin = "0.31"
@@ -33,7 +35,7 @@ lightning-invoice = "0.31"
 # Additional crypto utilities
 secp256k1 = "0.28"
 
-# Encryption support (NIP-44 compatible)
+# Encryption support (ChaCha20Poly1305)
 chacha20poly1305 = "0.10"
 hkdf = "0.12"
 sha2 = "0.10"

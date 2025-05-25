@@ -1,8 +1,8 @@
-//! NIP-44 compatible encryption implementation for UBA
+//! ChaCha20Poly1305 encryption implementation for UBA
 //! 
-//! This module provides encryption and decryption functionality compatible with NIP-44,
-//! the Nostr encryption standard. It uses ChaCha20Poly1305 for authenticated encryption
-//! with HKDF for key derivation.
+//! This module provides encryption and decryption functionality using ChaCha20Poly1305
+//! authenticated encryption with HKDF for key derivation. This provides secure storage
+//! of UBA data on Nostr relays with optional encryption.
 
 use crate::{UbaError, Result};
 use chacha20poly1305::{
@@ -14,7 +14,7 @@ use sha2::Sha256;
 use rand::RngCore;
 use base64::{Engine as _, engine::general_purpose};
 
-/// Encryption context for NIP-44 compatible operations
+/// Encryption context for UBA operations
 pub struct UbaEncryption {
     cipher: ChaCha20Poly1305,
 }
@@ -26,7 +26,7 @@ impl UbaEncryption {
         Self { cipher }
     }
 
-    /// Encrypt data using NIP-44 compatible method
+    /// Encrypt data using ChaCha20Poly1305
     /// 
     /// # Arguments
     /// * `data` - The data to encrypt (typically JSON)
@@ -52,7 +52,7 @@ impl UbaEncryption {
         Ok(general_purpose::STANDARD.encode(&combined))
     }
 
-    /// Decrypt data using NIP-44 compatible method
+    /// Decrypt data using ChaCha20Poly1305
     /// 
     /// # Arguments
     /// * `encrypted_data` - Base64 encoded encrypted data with nonce
