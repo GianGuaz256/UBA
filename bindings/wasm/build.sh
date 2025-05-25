@@ -5,6 +5,10 @@
 
 set -e  # Exit on any error
 
+# Get the absolute path of the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,6 +44,59 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Secure wasm-pack installation
+install_wasm_pack() {
+    log "Installing wasm-pack securely..."
+    
+    # Create temporary directory for download
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    
+    # Download installer script
+    INSTALLER_URL="https://rustwasm.github.io/wasm-pack/installer/init.sh"
+    INSTALLER_PATH="$TEMP_DIR/wasm-pack-installer.sh"
+    
+    log "Downloading wasm-pack installer from $INSTALLER_URL"
+    if command_exists curl; then
+        curl -sSf "$INSTALLER_URL" -o "$INSTALLER_PATH"
+    elif command_exists wget; then
+        wget -q "$INSTALLER_URL" -O "$INSTALLER_PATH"
+    else
+        error "Neither curl nor wget is available for downloading"
+        exit 1
+    fi
+    
+    # Verify the installer exists and is not empty
+    if [ ! -s "$INSTALLER_PATH" ]; then
+        error "Downloaded installer is empty or doesn't exist"
+        exit 1
+    fi
+    
+    # Basic content verification - check if it looks like a shell script
+    if ! head -1 "$INSTALLER_PATH" | grep -q "^#!/"; then
+        error "Downloaded file doesn't appear to be a shell script"
+        exit 1
+    fi
+    
+    # Check for suspicious content (basic security check)
+    if grep -q -E "(rm -rf /|sudo rm|format|mkfs)" "$INSTALLER_PATH"; then
+        error "Installer contains potentially dangerous commands"
+        exit 1
+    fi
+    
+    log "Installer appears safe, executing..."
+    chmod +x "$INSTALLER_PATH"
+    "$INSTALLER_PATH"
+    
+    # Verify installation
+    if ! command_exists wasm-pack; then
+        error "wasm-pack installation failed"
+        exit 1
+    fi
+    
+    success "wasm-pack installed successfully"
+}
+
 # Check prerequisites
 check_prerequisites() {
     header "Checking Prerequisites"
@@ -61,11 +118,7 @@ check_prerequisites() {
     # Check wasm-pack
     if ! command_exists wasm-pack; then
         error "wasm-pack is not installed. Installing..."
-        curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-        if ! command_exists wasm-pack; then
-            error "Failed to install wasm-pack"
-            exit 1
-        fi
+        install_wasm_pack
     fi
     log "wasm-pack version: $(wasm-pack --version)"
     
@@ -101,13 +154,13 @@ build_main_library() {
     header "Building Main UBA Library"
     
     log "Building main Rust library..."
-    cd ../../
+    cd "$PROJECT_ROOT"
     cargo build --release --features wasm --no-default-features
     
     log "Running main library tests..."
     cargo test --release --features wasm --no-default-features || warn "Some tests failed but continuing..."
     
-    cd bindings/wasm/
+    cd "$SCRIPT_DIR"
     success "Main library build completed"
 }
 

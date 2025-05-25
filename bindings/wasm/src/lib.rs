@@ -312,9 +312,14 @@ pub fn generate_addresses(
 ) -> Result<JsBitcoinAddresses, JsValue> {
     let final_config = config.map(|c| c.inner).unwrap_or_default();
     
-    // Try to create address generator - this may fail if secp256k1 is not available
-    match AddressGenerator::new(final_config.clone()) {
-        generator => {
+    // Try to create address generator - this may panic if secp256k1 is not available
+    // Wrap in catch_unwind to prevent panics from crossing the WASM boundary
+    let generator_result = std::panic::catch_unwind(|| {
+        AddressGenerator::new(final_config.clone())
+    });
+    
+    match generator_result {
+        Ok(generator) => {
             match generator.generate_addresses(seed, label) {
                 Ok(addresses) => Ok(JsBitcoinAddresses { inner: addresses }),
                 Err(e) => {
@@ -336,6 +341,30 @@ pub fn generate_addresses(
                     }
                 }
             }
+        }
+        Err(panic_info) => {
+            // Convert panic to a proper JS error
+            let panic_message = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "Unknown panic occurred during address generation".to_string()
+            };
+            
+            Err(JsValue::from_str(&format!(
+                "Address generation failed due to cryptographic library initialization error. \
+                This is typically caused by secp256k1-sys compilation issues in WASM builds. \
+                Panic details: {}. \
+                \
+                Solutions: \
+                1. Use create_addresses_from_data() with pre-generated addresses \
+                2. Use create_addresses_from_arrays() to manually construct address collections \
+                3. Set up proper WASM compilation environment with LLVM support \
+                4. Use the native Rust library for full functionality \
+                5. Check is_crypto_available() before calling this function",
+                panic_message
+            )))
         }
     }
 }

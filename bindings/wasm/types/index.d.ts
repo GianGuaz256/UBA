@@ -62,39 +62,50 @@ export declare const Networks: {
   readonly Regtest: 3;
 };
 
-// Main functions
-export declare function generate(
+// Main WASM exported functions (matching actual exports)
+export declare function generate_addresses(
   seed: string,
   label?: string,
-  relayUrls?: string[],
   config?: JsUbaConfig
-): Promise<string>;
+): JsBitcoinAddresses;
 
-export declare function retrieve(
-  uba: string,
-  relayUrls?: string[],
-  config?: JsUbaConfig
-): Promise<string[]>;
+export declare function create_addresses_from_data(
+  addressesJson: string
+): JsBitcoinAddresses;
 
-export declare function retrieveFull(
-  uba: string,
-  relayUrls?: string[],
-  config?: JsUbaConfig
-): Promise<JsBitcoinAddresses>;
+export declare function create_addresses_from_arrays(
+  p2pkhAddresses?: string[],
+  p2shAddresses?: string[],
+  p2wpkhAddresses?: string[],
+  p2trAddresses?: string[],
+  liquidAddresses?: string[],
+  lightningAddresses?: string[],
+  label?: string
+): JsBitcoinAddresses;
 
-export declare function parseUbaString(uba: string): ParsedUba;
+export declare function parse_uba_string(uba: string): ParsedUba;
 
-// Utility functions
-export declare function deriveEncryptionKeyFromPassphrase(
+// Utility functions (matching actual exports)
+export declare function derive_encryption_key_from_passphrase(
   passphrase: string,
   salt?: string
 ): string;
 
-export declare function generateRandomEncryptionKey(): string;
+export declare function generate_random_encryption_key(): string;
 
-export declare function getDefaultPublicRelays(): string[];
+export declare function get_default_public_relays(): string[];
 
-export declare function getExtendedPublicRelays(): string[];
+export declare function get_extended_public_relays(): string[];
+
+export declare function is_crypto_available(): boolean;
+
+export declare function get_build_info(): {
+  cryptoAvailable: boolean;
+  version: string;
+  target: string;
+  availableFeatures: string[];
+  limitations: string[];
+};
 
 // Error types
 export interface UbaError extends Error {
@@ -110,7 +121,6 @@ export type Network = 0 | 1 | 2 | 3;
 export interface UbaOptions {
   seed: string;
   label?: string;
-  relayUrls?: string[];
   network?: Network;
   encryptData?: boolean;
   encryptionKey?: string;
@@ -118,14 +128,20 @@ export interface UbaOptions {
   relayTimeout?: number;
 }
 
-export interface RetrieveOptions {
-  uba: string;
-  relayUrls?: string[];
-  encryptionKey?: string;
-  relayTimeout?: number;
-}
+// High-level wrapper functions (these would be implemented in a separate wrapper)
+export declare function generateUba(options: UbaOptions): JsBitcoinAddresses;
+export declare function parseUba(uba: string): ParsedUba;
 
-// High-level API functions
-export declare function generateUba(options: UbaOptions): Promise<string>;
-export declare function retrieveAddresses(options: RetrieveOptions): Promise<string[]>;
-export declare function retrieveFullAddresses(options: RetrieveOptions): Promise<JsBitcoinAddresses>; 
+// Compatibility aliases for the old function names (deprecated)
+/** @deprecated Use generate_addresses instead */
+export declare const generate: typeof generate_addresses;
+/** @deprecated Use parse_uba_string instead */
+export declare const parseUbaString: typeof parse_uba_string;
+/** @deprecated Use derive_encryption_key_from_passphrase instead */
+export declare const deriveEncryptionKeyFromPassphrase: typeof derive_encryption_key_from_passphrase;
+/** @deprecated Use generate_random_encryption_key instead */
+export declare const generateRandomEncryptionKey: typeof generate_random_encryption_key;
+/** @deprecated Use get_default_public_relays instead */
+export declare const getDefaultPublicRelays: typeof get_default_public_relays;
+/** @deprecated Use get_extended_public_relays instead */
+export declare const getExtendedPublicRelays: typeof get_extended_public_relays; 
