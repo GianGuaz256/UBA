@@ -1,7 +1,7 @@
 [package]
 name = "uba"
 version = "0.1.0"
-edition = "2025"
+edition = "2021"
 authors = ["GianGuaz256"]
 description = "A Rust library for creating and retrieving Unified Bitcoin Addresses (UBA) using Nostr relays"
 license = "MIT OR Apache-2.0"

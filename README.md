@@ -357,6 +357,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## 📋 Roadmap
 
+### ✅ Completed Features
 - [x] Bitcoin Layer 1 (Legacy, SegWit, Taproot)
 - [x] Liquid sidechain support
 - [x] Lightning Network node IDs
@@ -364,9 +365,17 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Public relay network with custom relay support
 - [x] Configurable address counts per layer
 - [x] Comprehensive examples and documentation
+
+### 🚨 Production Readiness (Critical)
+- [ ] Remove all `.unwrap()` calls and implement proper error handling
+- [ ] Complete NIP-04/NIP-17 encryption implementation
+- [ ] Implement structured logging and monitoring
+- [ ] Add comprehensive input validation and rate limiting
+- [ ] Implement connection timeouts and retry logic for relays
+
+### 🚀 Feature Enhancements
 - [ ] BOLT12 Lightning offers
 - [ ] Lightning addresses (email-like format)
-- [ ] NIP-04/NIP-17 encryption implementation
 - [ ] Address rotation and versioning
 - [ ] QR code generation utilities
 - [ ] CLI tool for UBA management
