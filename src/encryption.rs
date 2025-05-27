@@ -1,18 +1,18 @@
 //! ChaCha20Poly1305 encryption implementation for UBA
-//! 
+//!
 //! This module provides encryption and decryption functionality using ChaCha20Poly1305
 //! authenticated encryption with HKDF for key derivation. This provides secure storage
 //! of UBA data on Nostr relays with optional encryption.
 
-use crate::{UbaError, Result};
+use crate::{Result, UbaError};
+use base64::{engine::general_purpose, Engine as _};
 use chacha20poly1305::{
     aead::{Aead, KeyInit, OsRng},
-    ChaCha20Poly1305, Nonce, Key
+    ChaCha20Poly1305, Key, Nonce,
 };
 use hkdf::Hkdf;
-use sha2::Sha256;
 use rand::RngCore;
-use base64::{Engine as _, engine::general_purpose};
+use sha2::Sha256;
 
 /// Encryption context for UBA operations
 pub struct UbaEncryption {
@@ -27,10 +27,10 @@ impl UbaEncryption {
     }
 
     /// Encrypt data using ChaCha20Poly1305
-    /// 
+    ///
     /// # Arguments
     /// * `data` - The data to encrypt (typically JSON)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - Base64 encoded encrypted data with nonce
     /// * `Err(UbaError)` - Encryption error
@@ -41,7 +41,9 @@ impl UbaEncryption {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt the data
-        let ciphertext = self.cipher.encrypt(nonce, data.as_bytes())
+        let ciphertext = self
+            .cipher
+            .encrypt(nonce, data.as_bytes())
             .map_err(|e| UbaError::Encryption(format!("Failed to encrypt: {}", e)))?;
 
         // Combine nonce + ciphertext and encode as base64
@@ -53,21 +55,22 @@ impl UbaEncryption {
     }
 
     /// Decrypt data using ChaCha20Poly1305
-    /// 
+    ///
     /// # Arguments
     /// * `encrypted_data` - Base64 encoded encrypted data with nonce
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - Decrypted plaintext data
     /// * `Err(UbaError)` - Decryption error
     pub fn decrypt(&self, encrypted_data: &str) -> Result<String> {
         // Decode base64
-        let combined = general_purpose::STANDARD.decode(encrypted_data)
+        let combined = general_purpose::STANDARD
+            .decode(encrypted_data)
             .map_err(|e| UbaError::Encryption(format!("Failed to decode base64: {}", e)))?;
 
         if combined.len() < 12 {
             return Err(UbaError::Encryption(
-                "Encrypted data too short, missing nonce".to_string()
+                "Encrypted data too short, missing nonce".to_string(),
             ));
         }
 
@@ -76,7 +79,9 @@ impl UbaEncryption {
         let nonce = Nonce::from_slice(nonce_bytes);
 
         // Decrypt the data
-        let plaintext = self.cipher.decrypt(nonce, ciphertext)
+        let plaintext = self
+            .cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| UbaError::Encryption(format!("Failed to decrypt: {}", e)))?;
 
         String::from_utf8(plaintext)
@@ -85,25 +90,25 @@ impl UbaEncryption {
 }
 
 /// Derive an encryption key from a passphrase using HKDF
-/// 
+///
 /// This function derives a 32-byte encryption key from a passphrase using HKDF-SHA256.
 /// This allows users to use memorable passphrases instead of raw 32-byte keys.
-/// 
+///
 /// # Arguments
 /// * `passphrase` - User-provided passphrase
 /// * `salt` - Optional salt (if None, uses default UBA salt)
-/// 
+///
 /// # Returns
 /// * 32-byte derived key
 pub fn derive_encryption_key(passphrase: &str, salt: Option<&[u8]>) -> [u8; 32] {
     let default_salt = b"UBA-encryption-salt-v1";
     let used_salt = salt.unwrap_or(default_salt);
-    
+
     let hk = Hkdf::<Sha256>::new(Some(used_salt), passphrase.as_bytes());
     let mut key = [0u8; 32];
     hk.expand(b"UBA-encryption-key", &mut key)
         .expect("32 bytes is a valid length for HKDF output");
-    
+
     key
 }
 
@@ -115,11 +120,11 @@ pub fn generate_random_key() -> [u8; 32] {
 }
 
 /// Utility function to encrypt JSON data if encryption is enabled
-/// 
+///
 /// # Arguments
 /// * `json_data` - The JSON string to potentially encrypt
 /// * `encryption_key` - Optional encryption key
-/// 
+///
 /// # Returns
 /// * Encrypted data if key provided, original data if not
 pub fn encrypt_if_enabled(json_data: &str, encryption_key: Option<&[u8; 32]>) -> Result<String> {
@@ -128,16 +133,16 @@ pub fn encrypt_if_enabled(json_data: &str, encryption_key: Option<&[u8; 32]>) ->
             let encryption = UbaEncryption::new(*key);
             encryption.encrypt(json_data)
         }
-        None => Ok(json_data.to_string())
+        None => Ok(json_data.to_string()),
     }
 }
 
 /// Utility function to decrypt JSON data if it was encrypted
-/// 
+///
 /// # Arguments
 /// * `data` - The potentially encrypted data
 /// * `encryption_key` - Optional encryption key
-/// 
+///
 /// # Returns
 /// * Decrypted data if key provided and data is encrypted, original data otherwise
 pub fn decrypt_if_needed(data: &str, encryption_key: Option<&[u8; 32]>) -> Result<String> {
@@ -147,7 +152,7 @@ pub fn decrypt_if_needed(data: &str, encryption_key: Option<&[u8; 32]>) -> Resul
             let encryption = UbaEncryption::new(*key);
             encryption.decrypt(data).or_else(|_| Ok(data.to_string()))
         }
-        None => Ok(data.to_string())
+        None => Ok(data.to_string()),
     }
 }
 
@@ -159,11 +164,11 @@ mod tests {
     fn test_encryption_roundtrip() {
         let key = generate_random_key();
         let encryption = UbaEncryption::new(key);
-        
+
         let original = "Hello, encrypted world!";
         let encrypted = encryption.encrypt(original).unwrap();
         let decrypted = encryption.decrypt(&encrypted).unwrap();
-        
+
         assert_eq!(original, decrypted);
     }
 
@@ -172,10 +177,10 @@ mod tests {
         let passphrase = "my secret passphrase";
         let key1 = derive_encryption_key(passphrase, None);
         let key2 = derive_encryption_key(passphrase, None);
-        
+
         // Same passphrase should derive same key
         assert_eq!(key1, key2);
-        
+
         // Different passphrase should derive different key
         let key3 = derive_encryption_key("different passphrase", None);
         assert_ne!(key1, key3);
@@ -185,21 +190,21 @@ mod tests {
     fn test_json_encryption() {
         let json = r#"{"addresses": {"P2PKH": ["1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"]}}"#;
         let key = generate_random_key();
-        
+
         let encrypted = encrypt_if_enabled(json, Some(&key)).unwrap();
         let decrypted = decrypt_if_needed(&encrypted, Some(&key)).unwrap();
-        
+
         assert_eq!(json, decrypted);
     }
 
     #[test]
     fn test_no_encryption_passthrough() {
         let json = r#"{"addresses": {"P2PKH": ["1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"]}}"#;
-        
+
         let result = encrypt_if_enabled(json, None).unwrap();
         assert_eq!(json, result);
-        
+
         let result = decrypt_if_needed(json, None).unwrap();
         assert_eq!(json, result);
     }
-} 
+}

@@ -1,9 +1,9 @@
 //! Main UBA functionality - generate and retrieve functions
 
-use crate::error::{Result, UbaError};
-use crate::types::{BitcoinAddresses, UbaConfig, ParsedUba};
 use crate::address::AddressGenerator;
-use crate::nostr_client::{NostrClient, generate_nostr_keys_from_seed};
+use crate::error::{Result, UbaError};
+use crate::nostr_client::{generate_nostr_keys_from_seed, NostrClient};
+use crate::types::{BitcoinAddresses, ParsedUba, UbaConfig};
 
 use url::Url;
 
@@ -68,10 +68,9 @@ pub async fn generate_with_config(
     nostr_client.connect_to_relays(&final_relay_urls).await?;
 
     // Publish the addresses to Nostr with encryption if enabled
-    let event_id = nostr_client.publish_addresses_with_encryption(
-        &addresses, 
-        config.encryption_key.as_ref()
-    ).await?;
+    let event_id = nostr_client
+        .publish_addresses_with_encryption(&addresses, config.encryption_key.as_ref())
+        .await?;
 
     // Disconnect from relays
     nostr_client.disconnect().await;
@@ -89,7 +88,7 @@ pub async fn generate_with_config(
 /// Retrieve Bitcoin addresses from a UBA string
 ///
 /// # Arguments
-/// * `uba` - UBA string (e.g., "UBA:<NostrID>&label=<label>")
+/// * `uba` - UBA string (e.g., "UBA:\<NostrID\>&label=\<label\>")
 /// * `relay_urls` - List of Nostr relay URLs to query
 ///
 /// # Returns
@@ -140,10 +139,9 @@ pub async fn retrieve_with_config(
     nostr_client.connect_to_relays(&final_relay_urls).await?;
 
     // Retrieve the addresses from Nostr with decryption if needed
-    let addresses = nostr_client.retrieve_addresses_with_decryption(
-        &parsed_uba.nostr_id,
-        config.encryption_key.as_ref()
-    ).await?;
+    let addresses = nostr_client
+        .retrieve_addresses_with_decryption(&parsed_uba.nostr_id, config.encryption_key.as_ref())
+        .await?;
 
     // Disconnect from relays
     nostr_client.disconnect().await;
@@ -187,10 +185,9 @@ pub async fn retrieve_full_with_config(
     nostr_client.connect_to_relays(&final_relay_urls).await?;
 
     // Retrieve the addresses from Nostr with decryption if needed
-    let addresses = nostr_client.retrieve_addresses_with_decryption(
-        &parsed_uba.nostr_id,
-        config.encryption_key.as_ref()
-    ).await?;
+    let addresses = nostr_client
+        .retrieve_addresses_with_decryption(&parsed_uba.nostr_id, config.encryption_key.as_ref())
+        .await?;
 
     // Disconnect from relays
     nostr_client.disconnect().await;
@@ -220,7 +217,7 @@ pub fn parse_uba(uba: &str) -> Result<ParsedUba> {
     // Check if it starts with "UBA:"
     if !uba.starts_with("UBA:") {
         return Err(UbaError::InvalidUbaFormat(
-            "UBA string must start with 'UBA:'".to_string()
+            "UBA string must start with 'UBA:'".to_string(),
         ));
     }
 
@@ -231,21 +228,18 @@ pub fn parse_uba(uba: &str) -> Result<ParsedUba> {
     if let Some(query_start) = content.find('&') {
         let nostr_id = content[..query_start].to_string();
         let query_string = &content[query_start + 1..];
-        
+
         // Parse query parameters
         let label = parse_query_params(query_string)?;
-        
+
         // Validate the Nostr ID format (should be 64 hex characters)
         validate_nostr_id(&nostr_id)?;
-        
-        Ok(ParsedUba {
-            nostr_id,
-            label,
-        })
+
+        Ok(ParsedUba { nostr_id, label })
     } else {
         // No query parameters, just the Nostr ID
         validate_nostr_id(content)?;
-        
+
         Ok(ParsedUba {
             nostr_id: content.to_string(),
             label: None,
@@ -256,21 +250,22 @@ pub fn parse_uba(uba: &str) -> Result<ParsedUba> {
 /// Parse query parameters from UBA string
 fn parse_query_params(query_string: &str) -> Result<Option<String>> {
     let pairs: Vec<&str> = query_string.split('&').collect();
-    
+
     for pair in pairs {
         if let Some(eq_pos) = pair.find('=') {
             let key = &pair[..eq_pos];
             let value = &pair[eq_pos + 1..];
-            
+
             if key == "label" {
                 // URL decode the value if needed
-                let decoded = urlencoding::decode(value)
-                    .map_err(|_| UbaError::InvalidUbaFormat("Invalid URL encoding in label".to_string()))?;
+                let decoded = urlencoding::decode(value).map_err(|_| {
+                    UbaError::InvalidUbaFormat("Invalid URL encoding in label".to_string())
+                })?;
                 return Ok(Some(decoded.to_string()));
             }
         }
     }
-    
+
     Ok(None)
 }
 
@@ -278,38 +273,40 @@ fn parse_query_params(query_string: &str) -> Result<Option<String>> {
 fn validate_nostr_id(nostr_id: &str) -> Result<()> {
     if nostr_id.len() != 64 {
         return Err(UbaError::InvalidUbaFormat(
-            "Nostr ID must be 64 characters long".to_string()
+            "Nostr ID must be 64 characters long".to_string(),
         ));
     }
-    
+
     // Check if it's valid hex
     if !nostr_id.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(UbaError::InvalidUbaFormat(
-            "Nostr ID must be hexadecimal".to_string()
+            "Nostr ID must be hexadecimal".to_string(),
         ));
     }
-    
+
     Ok(())
 }
 
 /// Validate relay URLs
 fn validate_relay_urls(relay_urls: &[String]) -> Result<()> {
     if relay_urls.is_empty() {
-        return Err(UbaError::Config("At least one relay URL is required".to_string()));
+        return Err(UbaError::Config(
+            "At least one relay URL is required".to_string(),
+        ));
     }
-    
+
     for url_str in relay_urls {
-        let url = Url::parse(url_str)
-            .map_err(|_| UbaError::InvalidRelayUrl(url_str.clone()))?;
-            
+        let url = Url::parse(url_str).map_err(|_| UbaError::InvalidRelayUrl(url_str.clone()))?;
+
         // Check if it's a WebSocket URL
         if url.scheme() != "ws" && url.scheme() != "wss" {
-            return Err(UbaError::InvalidRelayUrl(
-                format!("Relay URL must use ws:// or wss:// scheme: {}", url_str)
-            ));
+            return Err(UbaError::InvalidRelayUrl(format!(
+                "Relay URL must use ws:// or wss:// scheme: {}",
+                url_str
+            )));
         }
     }
-    
+
     Ok(())
 }
 
@@ -318,18 +315,20 @@ fn validate_label(label: &str) -> Result<()> {
     if label.is_empty() {
         return Err(UbaError::InvalidLabel("Label cannot be empty".to_string()));
     }
-    
+
     if label.len() > 100 {
-        return Err(UbaError::InvalidLabel("Label cannot exceed 100 characters".to_string()));
+        return Err(UbaError::InvalidLabel(
+            "Label cannot exceed 100 characters".to_string(),
+        ));
     }
-    
+
     // Check for invalid characters that might cause issues in URLs
     if label.chars().any(|c| "?&=".contains(c)) {
         return Err(UbaError::InvalidLabel(
-            "Label cannot contain ?, &, or = characters".to_string()
+            "Label cannot contain ?, &, or = characters".to_string(),
         ));
     }
-    
+
     Ok(())
 }
 
@@ -341,21 +340,28 @@ mod tests {
     fn test_parse_uba_without_label() {
         let uba = "UBA:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         let result = parse_uba(uba);
-        
+
         assert!(result.is_ok());
         let parsed = result.unwrap();
-        assert_eq!(parsed.nostr_id, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
+        assert_eq!(
+            parsed.nostr_id,
+            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        );
         assert_eq!(parsed.label, None);
     }
 
     #[test]
     fn test_parse_uba_with_label() {
-        let uba = "UBA:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef&label=my-wallet";
+        let uba =
+            "UBA:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef&label=my-wallet";
         let result = parse_uba(uba);
-        
+
         assert!(result.is_ok());
         let parsed = result.unwrap();
-        assert_eq!(parsed.nostr_id, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
+        assert_eq!(
+            parsed.nostr_id,
+            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        );
         assert_eq!(parsed.label, Some("my-wallet".to_string()));
     }
 
@@ -363,7 +369,7 @@ mod tests {
     fn test_parse_uba_invalid_format() {
         let uba = "INVALID:1234567890abcdef";
         let result = parse_uba(uba);
-        
+
         assert!(result.is_err());
     }
 
@@ -371,7 +377,7 @@ mod tests {
     fn test_parse_uba_invalid_nostr_id() {
         let uba = "UBA:invalidhex";
         let result = parse_uba(uba);
-        
+
         assert!(result.is_err());
     }
 
@@ -399,4 +405,4 @@ mod tests {
         assert!(validate_label("label?with?question").is_err());
         assert!(validate_label("label=with=equals").is_err());
     }
-} 
+}

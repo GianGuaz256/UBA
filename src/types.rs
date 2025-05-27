@@ -1,10 +1,10 @@
 //! Core types for the UBA library
 
-use serde::{Deserialize, Serialize};
 use bitcoin::Network;
-use std::collections::HashMap;
 use hex;
 use rand;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Configuration for UBA generation and retrieval
 #[derive(Debug, Clone)]
@@ -35,7 +35,9 @@ impl UbaConfig {
 
     /// Get the number of addresses to generate for a specific address type
     pub fn get_address_count(&self, address_type: &AddressType) -> usize {
-        self.address_counts.get(address_type).copied()
+        self.address_counts
+            .get(address_type)
+            .copied()
             .unwrap_or(self.max_addresses_per_type)
     }
 
@@ -55,28 +57,27 @@ impl UbaConfig {
     }
 
     /// Set encryption key from a hex string
-    /// 
+    ///
     /// # Arguments
     /// * `key_hex` - 64-character hex string representing 32 bytes
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` if key was set successfully
     /// * `Err` if hex string is invalid or wrong length
     pub fn set_encryption_key_from_hex(&mut self, key_hex: &str) -> Result<(), crate::UbaError> {
         if key_hex.len() != 64 {
             return Err(crate::UbaError::InvalidEncryptionKey(
-                "Encryption key must be exactly 64 hex characters (32 bytes)".to_string()
+                "Encryption key must be exactly 64 hex characters (32 bytes)".to_string(),
             ));
         }
 
-        let key_bytes = hex::decode(key_hex)
-            .map_err(|e| crate::UbaError::InvalidEncryptionKey(
-                format!("Invalid hex string: {}", e)
-            ))?;
+        let key_bytes = hex::decode(key_hex).map_err(|e| {
+            crate::UbaError::InvalidEncryptionKey(format!("Invalid hex string: {}", e))
+        })?;
 
         if key_bytes.len() != 32 {
             return Err(crate::UbaError::InvalidEncryptionKey(
-                "Encryption key must be exactly 32 bytes".to_string()
+                "Encryption key must be exactly 32 bytes".to_string(),
             ));
         }
 
@@ -108,7 +109,7 @@ impl UbaConfig {
 
     /// Get encryption key as hex string (for display/storage)
     pub fn get_encryption_key_hex(&self) -> Option<String> {
-        self.encryption_key.map(|key| hex::encode(key))
+        self.encryption_key.map(hex::encode)
     }
 
     /// Set custom relay URLs
@@ -126,7 +127,9 @@ impl UbaConfig {
 
     /// Get relay URLs to use (custom or default)
     pub fn get_relay_urls(&self) -> Vec<String> {
-        self.custom_relays.clone().unwrap_or_else(|| default_public_relays())
+        self.custom_relays
+            .clone()
+            .unwrap_or_else(default_public_relays)
     }
 
     /// Reset to use default public relays
@@ -209,7 +212,10 @@ impl BitcoinAddresses {
 
     /// Add an address of a specific type
     pub fn add_address(&mut self, address_type: AddressType, address: String) {
-        self.addresses.entry(address_type).or_insert_with(Vec::new).push(address);
+        self.addresses
+            .entry(address_type)
+            .or_default()
+            .push(address);
     }
 
     /// Get all addresses of a specific type
@@ -289,43 +295,43 @@ pub struct UbaRetrievalRequest {
 }
 
 /// Get a curated list of reliable public Nostr relays
-/// 
+///
 /// These relays are selected for reliability and geographical distribution.
 /// Users can override this list by setting custom_relays in UbaConfig.
 pub fn default_public_relays() -> Vec<String> {
     vec![
         // Reliable relays with good uptime and performance
-        "wss://relay.damus.io".to_string(),           // Damus (Cloudflare)
-        "wss://nos.lol".to_string(),                  // NOS (Hetzner)
-        "wss://relay.snort.social".to_string(),       // Snort (Cloudflare)
-        "wss://nostr.wine".to_string(),               // Nostr Wine (Cloudflare)
-        "wss://relay.nostr.band".to_string(),         // Nostr Band (Hetzner) - supports search
-        "wss://nostr.mutinywallet.com".to_string(),   // Mutiny Wallet (Amazon)
-        "wss://relay.primal.net".to_string(),         // Primal (Cloudflare)
-        "wss://relay.nostrati.com".to_string(),       // Nostrati (Digital Ocean)
+        "wss://relay.damus.io".to_string(), // Damus (Cloudflare)
+        "wss://nos.lol".to_string(),        // NOS (Hetzner)
+        "wss://relay.snort.social".to_string(), // Snort (Cloudflare)
+        "wss://nostr.wine".to_string(),     // Nostr Wine (Cloudflare)
+        "wss://relay.nostr.band".to_string(), // Nostr Band (Hetzner) - supports search
+        "wss://nostr.mutinywallet.com".to_string(), // Mutiny Wallet (Amazon)
+        "wss://relay.primal.net".to_string(), // Primal (Cloudflare)
+        "wss://relay.nostrati.com".to_string(), // Nostrati (Digital Ocean)
         "wss://nostr.sethforprivacy.com".to_string(), // Seth for Privacy (Privacy-focused)
-        "wss://offchain.pub".to_string(),             // Offchain Pub (MULTACOM)
-        "wss://relay.nostrplebs.com".to_string(),     // Nostr Plebs (Hetzner)
-        "wss://purplepag.es".to_string(),             // Purple Pages (Constant Company)
+        "wss://offchain.pub".to_string(),   // Offchain Pub (MULTACOM)
+        "wss://relay.nostrplebs.com".to_string(), // Nostr Plebs (Hetzner)
+        "wss://purplepag.es".to_string(),   // Purple Pages (Constant Company)
     ]
 }
 
 /// Extended public relay list for high-availability scenarios
-/// 
+///
 /// This includes additional relays for redundancy and broader network coverage.
 pub fn extended_public_relays() -> Vec<String> {
     let mut relays = default_public_relays();
     relays.extend(vec![
-        "wss://relay.bitcoinpark.com".to_string(),    // Bitcoin Park (Fastly)
-        "wss://lightningrelay.com".to_string(),       // Lightning Relay (IONOS)
-        "wss://relay.orangepill.dev".to_string(),     // Orange Pill (Oracle)
-        "wss://nostr.bitcoiner.social".to_string(),   // Bitcoiner Social (MULTACOM)
-        "wss://relay.exit.pub".to_string(),           // Exit Pub (Amazon)
-        "wss://purplerelay.com".to_string(),          // Purple Relay (Fastly)
-        "wss://brb.io".to_string(),                   // BRB (Cloudflare)
-        "wss://nostr.milou.lol".to_string(),          // Milou (Cloudflare)
-        "wss://relayable.org".to_string(),            // Relayable (Hetzner)
-        "wss://relay.mostr.pub".to_string(),          // Mostr Pub (Cloudflare)
+        "wss://relay.bitcoinpark.com".to_string(), // Bitcoin Park (Fastly)
+        "wss://lightningrelay.com".to_string(),    // Lightning Relay (IONOS)
+        "wss://relay.orangepill.dev".to_string(),  // Orange Pill (Oracle)
+        "wss://nostr.bitcoiner.social".to_string(), // Bitcoiner Social (MULTACOM)
+        "wss://relay.exit.pub".to_string(),        // Exit Pub (Amazon)
+        "wss://purplerelay.com".to_string(),       // Purple Relay (Fastly)
+        "wss://brb.io".to_string(),                // BRB (Cloudflare)
+        "wss://nostr.milou.lol".to_string(),       // Milou (Cloudflare)
+        "wss://relayable.org".to_string(),         // Relayable (Hetzner)
+        "wss://relay.mostr.pub".to_string(),       // Mostr Pub (Cloudflare)
     ]);
     relays
-} 
+}

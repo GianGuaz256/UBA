@@ -1,19 +1,19 @@
 //! Simple CLI example demonstrating UBA with encryption
-//! 
+//!
 //! Usage:
 //!   cargo run --example cli_with_encryption -- generate --seed "your seed" --passphrase "secret"
 //!   cargo run --example cli_with_encryption -- retrieve --uba "UBA:..." --passphrase "secret"
 
 use std::env;
 use uba::{
-    generate_with_config, retrieve_with_config, UbaConfig, 
-    derive_encryption_key, default_public_relays
+    default_public_relays, derive_encryption_key, generate_with_config, retrieve_with_config,
+    UbaConfig,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         return Ok(());
@@ -26,13 +26,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
             let passphrase = get_arg(&args, "--passphrase");
             let label = get_arg(&args, "--label");
-            
+
             generate_uba(&seed, passphrase.as_deref(), label.as_deref()).await?;
         }
         "retrieve" => {
             let uba = get_arg(&args, "--uba").expect("--uba is required for retrieve command");
             let passphrase = get_arg(&args, "--passphrase");
-            
+
             retrieve_uba(&uba, passphrase.as_deref()).await?;
         }
         "relays" => {
@@ -46,12 +46,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn generate_uba(seed: &str, passphrase: Option<&str>, label: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+async fn generate_uba(
+    seed: &str,
+    passphrase: Option<&str>,
+    label: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Generating UBA...");
-    
+
     let mut config = UbaConfig::default();
     config.set_all_counts(5); // Generate 5 addresses per type
-    
+
     // Set up encryption if passphrase provided
     if let Some(passphrase) = passphrase {
         let encryption_key = derive_encryption_key(passphrase, None);
@@ -60,17 +64,17 @@ async fn generate_uba(seed: &str, passphrase: Option<&str>, label: Option<&str>)
     } else {
         println!("⚠️  No encryption (use --passphrase for encryption)");
     }
-    
+
     // Generate UBA
     let uba = generate_with_config(seed, label, &[], config).await?;
-    
+
     println!("\n✅ Generated UBA:");
     println!("{}", uba);
-    
+
     if passphrase.is_some() {
         println!("\n🔑 Remember your passphrase to retrieve the addresses!");
     }
-    
+
     println!("\n📊 This UBA contains 30 addresses across all Bitcoin layers:");
     println!("   • 5 P2PKH (Legacy) addresses");
     println!("   • 5 P2SH (SegWit v0) addresses");
@@ -78,32 +82,35 @@ async fn generate_uba(seed: &str, passphrase: Option<&str>, label: Option<&str>)
     println!("   • 5 P2TR (Taproot) addresses");
     println!("   • 5 Liquid addresses");
     println!("   • 5 Lightning node public keys");
-    
+
     Ok(())
 }
 
-async fn retrieve_uba(uba: &str, passphrase: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+async fn retrieve_uba(
+    uba: &str,
+    passphrase: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Retrieving addresses from UBA...");
-    
+
     let mut config = UbaConfig::default();
-    
+
     // Set up decryption if passphrase provided
     if let Some(passphrase) = passphrase {
         let encryption_key = derive_encryption_key(passphrase, None);
         config.set_encryption_key(encryption_key);
         println!("🔐 Decryption enabled with passphrase");
     }
-    
+
     // Retrieve addresses
     let addresses = retrieve_with_config(uba, &[], config).await?;
-    
+
     println!("\n✅ Retrieved {} addresses:", addresses.len());
-    
+
     // Group and display addresses by type
     let mut bitcoin_l1 = Vec::new();
     let mut liquid = Vec::new();
     let mut lightning = Vec::new();
-    
+
     for addr in addresses {
         if addr.starts_with('1') || addr.starts_with('3') || addr.starts_with("bc1") {
             bitcoin_l1.push(addr);
@@ -113,28 +120,28 @@ async fn retrieve_uba(uba: &str, passphrase: Option<&str>) -> Result<(), Box<dyn
             lightning.push(addr);
         }
     }
-    
+
     if !bitcoin_l1.is_empty() {
         println!("\n🟠 Bitcoin L1 Addresses ({}):", bitcoin_l1.len());
         for addr in bitcoin_l1 {
             println!("   {}", addr);
         }
     }
-    
+
     if !liquid.is_empty() {
         println!("\n🔵 Liquid Addresses ({}):", liquid.len());
         for addr in liquid {
             println!("   {}", addr);
         }
     }
-    
+
     if !lightning.is_empty() {
         println!("\n⚡ Lightning Node Public Keys ({}):", lightning.len());
         for addr in lightning {
             println!("   {}", addr);
         }
     }
-    
+
     Ok(())
 }
 
@@ -182,4 +189,4 @@ fn print_usage() {
     println!();
     println!("   # Retrieve encrypted UBA");
     println!("   cargo run --example cli_with_encryption -- retrieve --uba \"UBA:abc123...\" --passphrase \"my-secret\"");
-} 
+}

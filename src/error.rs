@@ -105,4 +105,4 @@ impl From<bip39::Error> for UbaError {
     fn from(err: bip39::Error) -> Self {
         UbaError::Bip39(err.to_string())
     }
-} 
+}

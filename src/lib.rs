@@ -1,4 +1,4 @@
-//! UBA (Unified Bitcoin Addresses) - A comprehensive library for generating and retrieving 
+//! UBA (Unified Bitcoin Addresses) - A comprehensive library for generating and retrieving
 //! Bitcoin addresses across all layers (L1, Liquid, Lightning) using Nostr relays.
 //!
 //! UBA provides a single string format that unifies Bitcoin addresses from different layers
@@ -35,20 +35,23 @@
 //! - **Configurable address counts**: Flexible control over address generation
 //! - **Public relay list**: Curated list of reliable Nostr relays
 
-pub mod error;
-pub mod types;
 pub mod address;
-pub mod nostr_client;
-pub mod uba;
 pub mod encryption;
+pub mod error;
+pub mod nostr_client;
+pub mod types;
+pub mod uba;
 
 // Re-export main types and functions for convenience
-pub use error::{UbaError, Result};
-pub use types::*;
 pub use address::AddressGenerator;
+pub use encryption::{derive_encryption_key, generate_random_key, UbaEncryption};
+pub use error::{Result, UbaError};
 pub use nostr_client::NostrClient;
-pub use uba::{generate, generate_with_config, retrieve, retrieve_with_config, retrieve_full, retrieve_full_with_config, parse_uba};
-pub use encryption::{UbaEncryption, derive_encryption_key, generate_random_key};
+pub use types::*;
+pub use uba::{
+    generate, generate_with_config, parse_uba, retrieve, retrieve_full, retrieve_full_with_config,
+    retrieve_with_config,
+};
 
 // Re-export commonly used external types
 pub use bitcoin::Network;
