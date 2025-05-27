@@ -1,8 +1,21 @@
 //! ChaCha20Poly1305 encryption implementation for UBA
 //!
-//! This module provides encryption and decryption functionality using ChaCha20Poly1305
-//! authenticated encryption with HKDF for key derivation. This provides secure storage
-//! of UBA data on Nostr relays with optional encryption.
+//! This module provides optional encryption functionality using ChaCha20Poly1305
+//! authenticated encryption with HKDF for key derivation. This is intended for
+//! advanced use cases where users need to encrypt UBA data before storage.
+//!
+//! **Note**: UBA's core mission is to simplify Bitcoin address sharing through
+//! public, discoverable addresses. Encryption is optional and should only be
+//! used when specifically needed for privacy-sensitive applications.
+//!
+//! Currently supports:
+//! - Basic ChaCha20Poly1305 encryption/decryption
+//! - Key derivation from passphrases
+//! 
+//! Future roadmap may include:
+//! - NIP-04 encryption for Nostr compatibility (if community demand exists)
+//! - NIP-17 Gift Wrap encryption for advanced privacy use cases
+//! - Selective metadata encryption (keeping addresses public)
 
 use crate::{Result, UbaError};
 use base64::{engine::general_purpose, Engine as _};
@@ -89,7 +102,29 @@ impl UbaEncryption {
     }
 }
 
-/// Derive an encryption key from a passphrase using HKDF
+/// Derive an encryption key from a passphrase using HKDF with proper error handling
+///
+/// This function derives a 32-byte encryption key from a passphrase using HKDF-SHA256.
+/// This allows users to use memorable passphrases instead of raw 32-byte keys.
+///
+/// # Arguments
+/// * `passphrase` - User-provided passphrase
+/// * `salt` - Optional salt (if None, uses default UBA salt)
+///
+/// # Returns
+/// * Result containing 32-byte derived key or error
+pub fn derive_encryption_key_safe(passphrase: &str, salt: Option<&[u8]>) -> Result<[u8; 32]> {
+    let default_salt = b"UBA-encryption-salt-v1";
+    let used_salt = salt.unwrap_or(default_salt);
+
+    let hk = Hkdf::<Sha256>::new(Some(used_salt), passphrase.as_bytes());
+    let mut key = [0u8; 32];
+    hk.expand(b"UBA-encryption-key", &mut key)?;
+
+    Ok(key)
+}
+
+/// Derive an encryption key from a passphrase using HKDF (backward compatibility)
 ///
 /// This function derives a 32-byte encryption key from a passphrase using HKDF-SHA256.
 /// This allows users to use memorable passphrases instead of raw 32-byte keys.
@@ -100,16 +135,12 @@ impl UbaEncryption {
 ///
 /// # Returns
 /// * 32-byte derived key
+/// 
+/// # Panics
+/// This function panics if key derivation fails. For error handling, use `derive_encryption_key_safe`.
 pub fn derive_encryption_key(passphrase: &str, salt: Option<&[u8]>) -> [u8; 32] {
-    let default_salt = b"UBA-encryption-salt-v1";
-    let used_salt = salt.unwrap_or(default_salt);
-
-    let hk = Hkdf::<Sha256>::new(Some(used_salt), passphrase.as_bytes());
-    let mut key = [0u8; 32];
-    hk.expand(b"UBA-encryption-key", &mut key)
-        .expect("32 bytes is a valid length for HKDF output");
-
-    key
+    derive_encryption_key_safe(passphrase, salt)
+        .expect("Key derivation should not fail with valid inputs")
 }
 
 /// Generate a random 32-byte encryption key
@@ -175,14 +206,14 @@ mod tests {
     #[test]
     fn test_key_derivation() {
         let passphrase = "my secret passphrase";
-        let key1 = derive_encryption_key(passphrase, None);
-        let key2 = derive_encryption_key(passphrase, None);
+        let key1 = derive_encryption_key_safe(passphrase, None).unwrap();
+        let key2 = derive_encryption_key_safe(passphrase, None).unwrap();
 
         // Same passphrase should derive same key
         assert_eq!(key1, key2);
 
         // Different passphrase should derive different key
-        let key3 = derive_encryption_key("different passphrase", None);
+        let key3 = derive_encryption_key_safe("different passphrase", None).unwrap();
         assert_ne!(key1, key3);
     }
 
@@ -206,5 +237,19 @@ mod tests {
 
         let result = decrypt_if_needed(json, None).unwrap();
         assert_eq!(json, result);
+    }
+
+    #[test]
+    fn test_key_derivation_safe() {
+        let passphrase = "my secret passphrase";
+        let key1 = derive_encryption_key_safe(passphrase, None).unwrap();
+        let key2 = derive_encryption_key_safe(passphrase, None).unwrap();
+
+        // Same passphrase should derive same key
+        assert_eq!(key1, key2);
+
+        // Different passphrase should derive different key
+        let key3 = derive_encryption_key_safe("different passphrase", None).unwrap();
+        assert_ne!(key1, key3);
     }
 }

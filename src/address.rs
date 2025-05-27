@@ -392,7 +392,7 @@ mod tests {
         let result = generator.generate_addresses(mnemonic, Some("test".to_string()));
 
         assert!(result.is_ok());
-        let addresses = result.unwrap();
+        let addresses = result.expect("Address generation should succeed");
         assert!(!addresses.is_empty());
 
         // Check that we have all address types
@@ -405,22 +405,22 @@ mod tests {
 
         // Verify we have the expected number of addresses per type (default is now 1)
         assert_eq!(
-            addresses.get_addresses(&AddressType::P2PKH).unwrap().len(),
+            addresses.get_addresses(&AddressType::P2PKH).expect("P2PKH addresses should exist").len(),
             1
         );
         assert_eq!(
-            addresses.get_addresses(&AddressType::Liquid).unwrap().len(),
+            addresses.get_addresses(&AddressType::Liquid).expect("Liquid addresses should exist").len(),
             1
         );
         assert_eq!(
             addresses
                 .get_addresses(&AddressType::Lightning)
-                .unwrap()
+                .expect("Lightning addresses should exist")
                 .len(),
             1
         );
         assert_eq!(
-            addresses.get_addresses(&AddressType::Nostr).unwrap().len(),
+            addresses.get_addresses(&AddressType::Nostr).expect("Nostr addresses should exist").len(),
             1
         );
     }
@@ -434,9 +434,9 @@ mod tests {
         let result = generator.generate_addresses(mnemonic, None);
 
         assert!(result.is_ok());
-        let addresses = result.unwrap();
+        let addresses = result.expect("Address generation should succeed");
 
-        let liquid_addresses = addresses.get_addresses(&AddressType::Liquid).unwrap();
+        let liquid_addresses = addresses.get_addresses(&AddressType::Liquid).expect("Liquid addresses should exist");
         assert!(!liquid_addresses.is_empty());
 
         // Liquid addresses should start with appropriate prefixes
@@ -455,9 +455,9 @@ mod tests {
         let result = generator.generate_addresses(mnemonic, None);
 
         assert!(result.is_ok());
-        let addresses = result.unwrap();
+        let addresses = result.expect("Address generation should succeed");
 
-        let lightning_addresses = addresses.get_addresses(&AddressType::Lightning).unwrap();
+        let lightning_addresses = addresses.get_addresses(&AddressType::Lightning).expect("Lightning addresses should exist");
         assert!(!lightning_addresses.is_empty());
 
         // Lightning node IDs should be 66 character hex strings (33 bytes * 2)
@@ -483,9 +483,9 @@ mod tests {
         let result = generator.generate_addresses(mnemonic, None);
 
         assert!(result.is_ok());
-        let addresses = result.unwrap();
+        let addresses = result.expect("Address generation should succeed");
 
-        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).unwrap();
+        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).expect("Nostr addresses should exist");
         assert!(!nostr_addresses.is_empty());
 
         // Nostr public keys should be in npub format (Bech32-encoded)
@@ -524,8 +524,8 @@ mod tests {
         assert!(result1.is_ok());
         assert!(result2.is_ok());
 
-        let addresses1 = result1.unwrap();
-        let addresses2 = result2.unwrap();
+        let addresses1 = result1.expect("First address generation should succeed");
+        let addresses2 = result2.expect("Second address generation should succeed");
 
         // Same seed should produce same addresses
         assert_eq!(
@@ -552,11 +552,11 @@ mod tests {
         let generator = AddressGenerator::new(config);
         let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-        let addresses = generator.generate_addresses(seed, None).unwrap();
+        let addresses = generator.generate_addresses(seed, None).expect("Address generation should succeed");
 
         // Check that Nostr addresses are included
         assert!(addresses.addresses.contains_key(&AddressType::Nostr));
-        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).unwrap();
+        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).expect("Nostr addresses should exist");
         assert!(!nostr_addresses.is_empty());
 
         // Verify it's a valid Nostr public key format (npub)
@@ -573,7 +573,7 @@ mod tests {
         let generator = AddressGenerator::new(config);
         let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-        let addresses = generator.generate_addresses(seed, None).unwrap();
+        let addresses = generator.generate_addresses(seed, None).expect("Address generation should succeed");
 
         // Lightning should not be present
         assert!(!addresses.addresses.contains_key(&AddressType::Lightning));

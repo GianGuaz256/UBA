@@ -1,7 +1,7 @@
 //! Nostr client for publishing and retrieving UBA data
 
 use crate::encryption::{decrypt_if_needed, encrypt_if_enabled};
-use crate::error::{Result, UbaError};
+use crate::error::{Result, UbaError, validation};
 use crate::types::BitcoinAddresses;
 
 use nostr::{EventBuilder, EventId, Filter, Keys, Kind, Tag, Url};
@@ -11,11 +11,13 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::timeout;
 
-/// Nostr client for UBA operations
+/// Nostr client for UBA operations with retry logic
 pub struct NostrClient {
     client: Client,
     keys: Keys,
     timeout_duration: Duration,
+    max_retry_attempts: usize,
+    retry_delay_ms: u64,
 }
 
 impl NostrClient {
@@ -28,6 +30,8 @@ impl NostrClient {
             client,
             keys,
             timeout_duration: Duration::from_secs(timeout_seconds),
+            max_retry_attempts: 3,
+            retry_delay_ms: 1000,
         })
     }
 
@@ -39,14 +43,59 @@ impl NostrClient {
             client,
             keys,
             timeout_duration: Duration::from_secs(timeout_seconds),
+            max_retry_attempts: 3,
+            retry_delay_ms: 1000,
         }
     }
 
-    /// Connect to the specified relay URLs
+    /// Create a new Nostr client with retry configuration
+    pub fn with_retry_config(
+        timeout_seconds: u64,
+        max_retry_attempts: usize,
+        retry_delay_ms: u64,
+    ) -> Result<Self> {
+        let keys = Keys::generate();
+        let client = Client::new(&keys);
+
+        Ok(Self {
+            client,
+            keys,
+            timeout_duration: Duration::from_secs(timeout_seconds),
+            max_retry_attempts,
+            retry_delay_ms,
+        })
+    }
+
+    /// Connect to the specified relay URLs with retry logic
     pub async fn connect_to_relays(&self, relay_urls: &[String]) -> Result<()> {
+        // Validate relay URLs first
+        validation::validate_relay_urls(relay_urls)?;
+
+        let mut last_error = None;
+
+        for attempt in 0..self.max_retry_attempts {
+            match self.try_connect_to_relays(relay_urls).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < self.max_retry_attempts - 1 {
+                        tokio::time::sleep(Duration::from_millis(self.retry_delay_ms)).await;
+                    }
+                }
+            }
+        }
+
+        Err(UbaError::RetryExhausted(format!(
+            "Failed to connect to relays after {} attempts: {}",
+            self.max_retry_attempts,
+            last_error.unwrap_or_else(|| UbaError::Network("Unknown error".to_string()))
+        )))
+    }
+
+    /// Single attempt to connect to relays
+    async fn try_connect_to_relays(&self, relay_urls: &[String]) -> Result<()> {
         for url_str in relay_urls {
-            let url =
-                Url::parse(url_str).map_err(|_| UbaError::InvalidRelayUrl(url_str.clone()))?;
+            let url = Url::parse(url_str).map_err(|_| UbaError::InvalidRelayUrl(url_str.clone()))?;
 
             self.client
                 .add_relay(url)
@@ -54,8 +103,10 @@ impl NostrClient {
                 .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
         }
 
-        // Connect to all added relays
-        self.client.connect().await;
+        // Connect to all added relays with timeout
+        timeout(self.timeout_duration, self.client.connect())
+            .await
+            .map_err(|_| UbaError::Timeout)?;
 
         // Wait a moment for connections to establish
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -124,6 +175,9 @@ impl NostrClient {
         addresses: &BitcoinAddresses,
         encryption_key: Option<&[u8; 32]>,
     ) -> Result<String> {
+        // Validate addresses before publishing
+        self.validate_address_update(addresses)?;
+
         // Serialize addresses to JSON
         let json_content = serde_json::to_string(addresses)?;
 

@@ -28,6 +28,10 @@ pub struct UbaConfig {
     /// Address type filters - controls which address types to include
     /// Default is all enabled (true for all types)
     pub address_filters: HashMap<AddressType, bool>,
+    /// Maximum retry attempts for relay connections
+    pub max_retry_attempts: usize,
+    /// Delay between retry attempts in milliseconds
+    pub retry_delay_ms: u64,
 }
 
 impl UbaConfig {
@@ -203,6 +207,12 @@ impl UbaConfig {
     pub fn use_default_relays(&mut self) {
         self.custom_relays = None;
     }
+
+    /// Set retry configuration
+    pub fn set_retry_config(&mut self, max_attempts: usize, delay_ms: u64) {
+        self.max_retry_attempts = max_attempts;
+        self.retry_delay_ms = delay_ms;
+    }
 }
 
 impl Default for UbaConfig {
@@ -216,6 +226,8 @@ impl Default for UbaConfig {
             address_counts: HashMap::new(),
             custom_relays: None,
             address_filters: HashMap::new(), // Empty means all enabled by default
+            max_retry_attempts: 3,
+            retry_delay_ms: 500,
         }
     }
 }
@@ -270,15 +282,31 @@ pub struct BitcoinAddresses {
 impl BitcoinAddresses {
     /// Create a new empty BitcoinAddresses collection
     pub fn new() -> Self {
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0); // Fallback to 0 if system time is before UNIX epoch
+
         Self {
             addresses: HashMap::new(),
             metadata: None,
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            created_at,
             version: 1,
         }
+    }
+
+    /// Create a new empty BitcoinAddresses collection with proper error handling
+    pub fn new_with_timestamp() -> crate::Result<Self> {
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
+
+        Ok(Self {
+            addresses: HashMap::new(),
+            metadata: None,
+            created_at,
+            version: 1,
+        })
     }
 
     /// Add an address of a specific type
