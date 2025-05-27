@@ -50,7 +50,7 @@ pub use nostr_client::NostrClient;
 pub use types::*;
 pub use uba::{
     generate, generate_with_config, parse_uba, retrieve, retrieve_full, retrieve_full_with_config,
-    retrieve_with_config,
+    retrieve_with_config, update_uba, update_uba_with_addresses,
 };
 
 // Re-export commonly used external types

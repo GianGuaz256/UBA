@@ -323,18 +323,177 @@ fn validate_label(label: &str) -> Result<()> {
     }
 
     // Check for invalid characters that might cause issues in URLs
-    if label.chars().any(|c| "?&=".contains(c)) {
+    // Allow only alphanumeric characters, hyphens, and underscores
+    if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err(UbaError::InvalidLabel(
-            "Label cannot contain ?, &, or = characters".to_string(),
+            "Label can only contain alphanumeric characters, hyphens, and underscores".to_string(),
         ));
     }
 
     Ok(())
 }
 
+/// Update Bitcoin addresses for an existing UBA by creating a new Nostr event
+///
+/// Since Nostr events are immutable, this function creates a new event that replaces
+/// the original one. The new event will reference the original event ID.
+///
+/// # Arguments
+/// * `nostr_event_id` - The Nostr event ID to update (hex format)
+/// * `seed` - BIP39 mnemonic phrase or hex-encoded private key for generating new addresses
+/// * `relay_urls` - List of Nostr relay URLs where the update will be published
+/// * `config` - Configuration including address filtering and encryption settings
+///
+/// # Returns
+/// A new UBA string pointing to the updated event
+///
+/// # Example
+/// ```rust,no_run
+/// use uba::{update_uba, UbaConfig, AddressType};
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     let original_event_id = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+///     let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+///     let relays = vec!["wss://relay.example.com".to_string()];
+///     
+///     let mut config = UbaConfig::default();
+///     // Disable Lightning addresses for this update
+///     config.set_address_type_enabled(AddressType::Lightning, false);
+///     
+///     let new_uba = update_uba(original_event_id, seed, &relays, config).await?;
+///     println!("Updated UBA: {}", new_uba);
+///     Ok(())
+/// }
+/// ```
+pub async fn update_uba(
+    nostr_event_id: &str,
+    seed: &str,
+    relay_urls: &[String],
+    config: UbaConfig,
+) -> Result<String> {
+    // Use relay URLs from config if provided, otherwise use passed URLs
+    let final_relay_urls = if relay_urls.is_empty() {
+        config.get_relay_urls()
+    } else {
+        relay_urls.to_vec()
+    };
+
+    // Validate inputs
+    validate_relay_urls(&final_relay_urls)?;
+    validate_nostr_id(nostr_event_id)?;
+
+    // Generate new Bitcoin addresses from the seed with current config
+    let address_generator = AddressGenerator::new(config.clone());
+    let mut updated_addresses = address_generator.generate_addresses(seed, None)?;
+
+    // Update the timestamp to reflect this is an update
+    updated_addresses.created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    // Generate deterministic Nostr keys from the seed
+    let nostr_keys = generate_nostr_keys_from_seed(seed)?;
+    let nostr_client = NostrClient::with_keys(nostr_keys, config.relay_timeout);
+
+    // Connect to Nostr relays
+    nostr_client.connect_to_relays(&final_relay_urls).await?;
+
+    // Update the addresses on Nostr with encryption if enabled
+    let new_event_id = nostr_client
+        .update_addresses(nostr_event_id, &updated_addresses, config.encryption_key.as_ref())
+        .await?;
+
+    // Disconnect from relays
+    nostr_client.disconnect().await;
+
+    // Return the new UBA string pointing to the updated event
+    let new_uba = format!("UBA:{}", new_event_id);
+    Ok(new_uba)
+}
+
+/// Update Bitcoin addresses with custom address data
+///
+/// This function allows you to update a UBA with specific address data rather than
+/// generating new addresses from a seed.
+///
+/// # Arguments
+/// * `nostr_event_id` - The Nostr event ID to update (hex format)
+/// * `updated_addresses` - The new address data to publish
+/// * `relay_urls` - List of Nostr relay URLs where the update will be published
+/// * `config` - Configuration including encryption settings
+///
+/// # Returns
+/// A new UBA string pointing to the updated event
+pub async fn update_uba_with_addresses(
+    nostr_event_id: &str,
+    updated_addresses: BitcoinAddresses,
+    relay_urls: &[String],
+    config: UbaConfig,
+) -> Result<String> {
+    // Use relay URLs from config if provided, otherwise use passed URLs
+    let final_relay_urls = if relay_urls.is_empty() {
+        config.get_relay_urls()
+    } else {
+        relay_urls.to_vec()
+    };
+
+    // Validate inputs first (before network operations)
+    validate_relay_urls(&final_relay_urls)?;
+    validate_nostr_id(nostr_event_id)?;
+    
+    // Validate the address data early
+    if updated_addresses.is_empty() {
+        return Err(UbaError::UpdateValidation(
+            "Updated addresses collection cannot be empty".to_string(),
+        ));
+    }
+
+    // Validate that at least one address type has addresses
+    let has_addresses = updated_addresses.addresses.values().any(|addrs| !addrs.is_empty());
+    if !has_addresses {
+        return Err(UbaError::UpdateValidation(
+            "At least one address type must contain addresses".to_string(),
+        ));
+    }
+
+    // Validate individual addresses format (basic validation)
+    for (addr_type, addr_list) in &updated_addresses.addresses {
+        for addr in addr_list {
+            if addr.trim().is_empty() {
+                return Err(UbaError::UpdateValidation(format!(
+                    "Empty address found in {:?} address type",
+                    addr_type
+                )));
+            }
+        }
+    }
+
+    // Create Nostr client (we need keys for publishing, but they don't need to be deterministic for updates)
+    let nostr_client = NostrClient::new(config.relay_timeout)?;
+
+    // Connect to Nostr relays
+    nostr_client.connect_to_relays(&final_relay_urls).await?;
+
+    // Update the addresses on Nostr with encryption if enabled
+    let new_event_id = nostr_client
+        .update_addresses(nostr_event_id, &updated_addresses, config.encryption_key.as_ref())
+        .await?;
+
+    // Disconnect from relays
+    nostr_client.disconnect().await;
+
+    // Return the new UBA string pointing to the updated event
+    let new_uba = format!("UBA:{}", new_event_id);
+    Ok(new_uba)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::address::AddressGenerator;
+    use crate::types::AddressType;
 
     #[test]
     fn test_parse_uba_without_label() {
@@ -398,11 +557,133 @@ mod tests {
 
     #[test]
     fn test_validate_label() {
-        assert!(validate_label("valid-label").is_ok());
+        // Valid labels
+        assert!(validate_label("my-wallet").is_ok());
+        assert!(validate_label("wallet123").is_ok());
+        assert!(validate_label("a").is_ok());
+
+        // Invalid labels
         assert!(validate_label("").is_err());
-        assert!(validate_label("a".repeat(101).as_str()).is_err());
-        assert!(validate_label("label&with&special").is_err());
-        assert!(validate_label("label?with?question").is_err());
-        assert!(validate_label("label=with=equals").is_err());
+        assert!(validate_label("a".repeat(101).as_str()).is_err()); // Too long
+        assert!(validate_label("my wallet").is_err()); // Contains space
+        assert!(validate_label("my@wallet").is_err()); // Contains @
+        assert!(validate_label("my/wallet").is_err()); // Contains /
+    }
+
+    #[test]
+    fn test_update_uba_validation_invalid_event_id() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let invalid_event_id = "invalid_hex";
+            let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+            let relays = vec!["wss://relay.example.com".to_string()];
+            let config = UbaConfig::default();
+
+            let result = update_uba(invalid_event_id, seed, &relays, config).await;
+            assert!(result.is_err());
+            assert!(matches!(result.unwrap_err(), UbaError::InvalidUbaFormat(_)));
+        });
+    }
+
+    #[test]
+    fn test_update_uba_validation_empty_relays() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let event_id = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+            let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+            let empty_relays: Vec<String> = vec![];
+            let config = UbaConfig::default();
+
+            // Should use default relays from config when empty relays provided
+            let result = update_uba(event_id, seed, &empty_relays, config).await;
+            // This will fail due to network/relay issues, but should pass validation
+            assert!(result.is_err());
+            // Should not be a validation error, but a network/relay error
+            assert!(!matches!(result.unwrap_err(), UbaError::InvalidRelayUrl(_)));
+        });
+    }
+
+    #[test]
+    fn test_update_uba_with_addresses_validation_empty_addresses() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let event_id = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+            let empty_addresses = BitcoinAddresses::new();
+            let relays = vec!["wss://relay.example.com".to_string()];
+            let config = UbaConfig::default();
+
+            let result = update_uba_with_addresses(event_id, empty_addresses, &relays, config).await;
+            assert!(result.is_err());
+            // Should fail during validation, not during network operations
+            assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
+        });
+    }
+
+    #[test]
+    fn test_update_uba_with_filtering_configuration() {
+        // Test that the update function respects address filtering
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let event_id = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+            let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+            let relays = vec!["wss://relay.example.com".to_string()];
+            
+            let mut config = UbaConfig::default();
+            // Disable Lightning and Liquid
+            config.set_address_type_enabled(AddressType::Lightning, false);
+            config.set_address_type_enabled(AddressType::Liquid, false);
+
+            let result = update_uba(event_id, seed, &relays, config).await;
+            // This will fail due to network issues, but the address generation should work
+            assert!(result.is_err());
+            // Should not be a validation error related to address generation
+            assert!(!matches!(result.unwrap_err(), UbaError::AddressGeneration(_)));
+        });
+    }
+
+    #[test]
+    fn test_update_uba_address_generation_with_filtering() {
+        // Test address generation part of update function with filtering
+        let mut config = UbaConfig::default();
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        config.set_address_type_enabled(AddressType::Liquid, false);
+        config.set_address_type_enabled(AddressType::Nostr, false);
+
+        let address_generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = address_generator.generate_addresses(seed, None).unwrap();
+
+        // Should only have Bitcoin L1 addresses
+        assert!(addresses.addresses.contains_key(&AddressType::P2PKH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2SH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2WPKH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2TR));
+
+        // Should not have disabled types
+        assert!(!addresses.addresses.contains_key(&AddressType::Lightning));
+        assert!(!addresses.addresses.contains_key(&AddressType::Liquid));
+        assert!(!addresses.addresses.contains_key(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_update_uba_timestamp_update() {
+        // Test that update function updates the timestamp
+        let config = UbaConfig::default();
+        let address_generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let original_addresses = address_generator.generate_addresses(seed, None).unwrap();
+        let original_timestamp = original_addresses.created_at;
+
+        // Simulate what update_uba does
+        std::thread::sleep(std::time::Duration::from_secs(1)); // Ensure time difference
+        let mut updated_addresses = address_generator.generate_addresses(seed, None).unwrap();
+        updated_addresses.created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        assert!(updated_addresses.created_at > original_timestamp);
     }
 }

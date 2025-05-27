@@ -25,6 +25,9 @@ pub struct UbaConfig {
     /// Optional custom relay URLs to use instead of default public relays
     /// If None, will use DEFAULT_PUBLIC_RELAYS
     pub custom_relays: Option<Vec<String>>,
+    /// Address type filters - controls which address types to include
+    /// Default is all enabled (true for all types)
+    pub address_filters: HashMap<AddressType, bool>,
 }
 
 impl UbaConfig {
@@ -55,6 +58,69 @@ impl UbaConfig {
         self.set_address_count(AddressType::Liquid, count);
         self.set_address_count(AddressType::Lightning, count);
         self.set_address_count(AddressType::Nostr, count);
+    }
+
+    /// Enable or disable a specific address type
+    pub fn set_address_type_enabled(&mut self, address_type: AddressType, enabled: bool) {
+        self.address_filters.insert(address_type, enabled);
+    }
+
+    /// Check if an address type is enabled
+    pub fn is_address_type_enabled(&self, address_type: &AddressType) -> bool {
+        self.address_filters
+            .get(address_type)
+            .copied()
+            .unwrap_or(true) // Default to enabled if not specified
+    }
+
+    /// Enable all Bitcoin L1 address types
+    pub fn enable_bitcoin_l1(&mut self) {
+        self.set_address_type_enabled(AddressType::P2PKH, true);
+        self.set_address_type_enabled(AddressType::P2SH, true);
+        self.set_address_type_enabled(AddressType::P2WPKH, true);
+        self.set_address_type_enabled(AddressType::P2TR, true);
+    }
+
+    /// Disable all Bitcoin L1 address types
+    pub fn disable_bitcoin_l1(&mut self) {
+        self.set_address_type_enabled(AddressType::P2PKH, false);
+        self.set_address_type_enabled(AddressType::P2SH, false);
+        self.set_address_type_enabled(AddressType::P2WPKH, false);
+        self.set_address_type_enabled(AddressType::P2TR, false);
+    }
+
+    /// Enable all address types
+    pub fn enable_all_address_types(&mut self) {
+        self.enable_bitcoin_l1();
+        self.set_address_type_enabled(AddressType::Liquid, true);
+        self.set_address_type_enabled(AddressType::Lightning, true);
+        self.set_address_type_enabled(AddressType::Nostr, true);
+    }
+
+    /// Disable all address types
+    pub fn disable_all_address_types(&mut self) {
+        self.disable_bitcoin_l1();
+        self.set_address_type_enabled(AddressType::Liquid, false);
+        self.set_address_type_enabled(AddressType::Lightning, false);
+        self.set_address_type_enabled(AddressType::Nostr, false);
+    }
+
+    /// Get a list of enabled address types
+    pub fn get_enabled_address_types(&self) -> Vec<AddressType> {
+        let all_types = vec![
+            AddressType::P2PKH,
+            AddressType::P2SH,
+            AddressType::P2WPKH,
+            AddressType::P2TR,
+            AddressType::Liquid,
+            AddressType::Lightning,
+            AddressType::Nostr,
+        ];
+
+        all_types
+            .into_iter()
+            .filter(|addr_type| self.is_address_type_enabled(addr_type))
+            .collect()
     }
 
     /// Set encryption key from a hex string
@@ -149,6 +215,7 @@ impl Default for UbaConfig {
             max_addresses_per_type: 1,
             address_counts: HashMap::new(),
             custom_relays: None,
+            address_filters: HashMap::new(), // Empty means all enabled by default
         }
     }
 }
@@ -338,4 +405,119 @@ pub fn extended_public_relays() -> Vec<String> {
         "wss://relay.mostr.pub".to_string(),       // Mostr Pub (Cloudflare)
     ]);
     relays
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_address_filtering_default_all_enabled() {
+        let config = UbaConfig::default();
+        
+        // All address types should be enabled by default
+        assert!(config.is_address_type_enabled(&AddressType::P2PKH));
+        assert!(config.is_address_type_enabled(&AddressType::P2SH));
+        assert!(config.is_address_type_enabled(&AddressType::P2WPKH));
+        assert!(config.is_address_type_enabled(&AddressType::P2TR));
+        assert!(config.is_address_type_enabled(&AddressType::Liquid));
+        assert!(config.is_address_type_enabled(&AddressType::Lightning));
+        assert!(config.is_address_type_enabled(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_set_address_type_enabled() {
+        let mut config = UbaConfig::default();
+        
+        // Disable Lightning
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        assert!(!config.is_address_type_enabled(&AddressType::Lightning));
+        assert!(config.is_address_type_enabled(&AddressType::P2PKH)); // Others still enabled
+        
+        // Re-enable Lightning
+        config.set_address_type_enabled(AddressType::Lightning, true);
+        assert!(config.is_address_type_enabled(&AddressType::Lightning));
+    }
+
+    #[test]
+    fn test_enable_disable_bitcoin_l1() {
+        let mut config = UbaConfig::default();
+        
+        // Disable all Bitcoin L1
+        config.disable_bitcoin_l1();
+        assert!(!config.is_address_type_enabled(&AddressType::P2PKH));
+        assert!(!config.is_address_type_enabled(&AddressType::P2SH));
+        assert!(!config.is_address_type_enabled(&AddressType::P2WPKH));
+        assert!(!config.is_address_type_enabled(&AddressType::P2TR));
+        // L2 should still be enabled
+        assert!(config.is_address_type_enabled(&AddressType::Lightning));
+        assert!(config.is_address_type_enabled(&AddressType::Liquid));
+        
+        // Re-enable Bitcoin L1
+        config.enable_bitcoin_l1();
+        assert!(config.is_address_type_enabled(&AddressType::P2PKH));
+        assert!(config.is_address_type_enabled(&AddressType::P2SH));
+        assert!(config.is_address_type_enabled(&AddressType::P2WPKH));
+        assert!(config.is_address_type_enabled(&AddressType::P2TR));
+    }
+
+    #[test]
+    fn test_enable_disable_all_address_types() {
+        let mut config = UbaConfig::default();
+        
+        // Disable all
+        config.disable_all_address_types();
+        assert!(!config.is_address_type_enabled(&AddressType::P2PKH));
+        assert!(!config.is_address_type_enabled(&AddressType::Lightning));
+        assert!(!config.is_address_type_enabled(&AddressType::Liquid));
+        assert!(!config.is_address_type_enabled(&AddressType::Nostr));
+        
+        // Enable all
+        config.enable_all_address_types();
+        assert!(config.is_address_type_enabled(&AddressType::P2PKH));
+        assert!(config.is_address_type_enabled(&AddressType::Lightning));
+        assert!(config.is_address_type_enabled(&AddressType::Liquid));
+        assert!(config.is_address_type_enabled(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_get_enabled_address_types() {
+        let mut config = UbaConfig::default();
+        
+        // All should be enabled by default
+        let enabled = config.get_enabled_address_types();
+        assert_eq!(enabled.len(), 7);
+        assert!(enabled.contains(&AddressType::P2PKH));
+        assert!(enabled.contains(&AddressType::Lightning));
+        
+        // Disable some types
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        config.set_address_type_enabled(AddressType::Liquid, false);
+        
+        let enabled = config.get_enabled_address_types();
+        assert_eq!(enabled.len(), 5);
+        assert!(!enabled.contains(&AddressType::Lightning));
+        assert!(!enabled.contains(&AddressType::Liquid));
+        assert!(enabled.contains(&AddressType::P2PKH));
+    }
+
+    #[test]
+    fn test_address_filtering_with_counts() {
+        let mut config = UbaConfig::default();
+        
+        // Set different counts for different types
+        config.set_address_count(AddressType::P2PKH, 5);
+        config.set_address_count(AddressType::Lightning, 3);
+        
+        // Disable Lightning
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        
+        // Should still return the count even if disabled (for potential re-enabling)
+        assert_eq!(config.get_address_count(&AddressType::Lightning), 3);
+        assert_eq!(config.get_address_count(&AddressType::P2PKH), 5);
+        
+        // But Lightning should not be in enabled list
+        let enabled = config.get_enabled_address_types();
+        assert!(!enabled.contains(&AddressType::Lightning));
+    }
 }

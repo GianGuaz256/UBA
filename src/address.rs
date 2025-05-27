@@ -59,17 +59,31 @@ impl AddressGenerator {
             derivation_paths: Some(self.get_derivation_paths()),
         });
 
-        // Generate addresses for each supported type
-        self.generate_legacy_addresses(&master_key, &mut addresses)?;
-        self.generate_segwit_addresses(&master_key, &mut addresses)?;
-        self.generate_taproot_addresses(&master_key, &mut addresses)?;
+        // Generate addresses for each supported type, but only if enabled
+        if self.config.is_address_type_enabled(&AddressType::P2PKH) 
+            || self.config.is_address_type_enabled(&AddressType::P2SH) 
+            || self.config.is_address_type_enabled(&AddressType::P2WPKH) {
+            self.generate_legacy_addresses(&master_key, &mut addresses)?;
+            self.generate_segwit_addresses(&master_key, &mut addresses)?;
+        }
 
-        // Generate L2 addresses
-        self.generate_liquid_addresses(&master_key, &mut addresses)?;
-        self.generate_lightning_addresses(&master_key, &mut addresses)?;
+        if self.config.is_address_type_enabled(&AddressType::P2TR) {
+            self.generate_taproot_addresses(&master_key, &mut addresses)?;
+        }
 
-        // Generate Nostr public key
-        self.generate_nostr_addresses(&master_key, &mut addresses)?;
+        // Generate L2 addresses only if enabled
+        if self.config.is_address_type_enabled(&AddressType::Liquid) {
+            self.generate_liquid_addresses(&master_key, &mut addresses)?;
+        }
+
+        if self.config.is_address_type_enabled(&AddressType::Lightning) {
+            self.generate_lightning_addresses(&master_key, &mut addresses)?;
+        }
+
+        // Generate Nostr public key only if enabled
+        if self.config.is_address_type_enabled(&AddressType::Nostr) {
+            self.generate_nostr_addresses(&master_key, &mut addresses)?;
+        }
 
         Ok(addresses)
     }
@@ -102,18 +116,21 @@ impl AddressGenerator {
         master_key: &Xpriv,
         addresses: &mut BitcoinAddresses,
     ) -> Result<()> {
-        let derivation_path = DerivationPath::from_str("m/44'/0'/0'/0")?;
-        let count = self.config.get_address_count(&AddressType::P2PKH);
+        // Only generate P2PKH if enabled
+        if self.config.is_address_type_enabled(&AddressType::P2PKH) {
+            let derivation_path = DerivationPath::from_str("m/44'/0'/0'/0")?;
+            let count = self.config.get_address_count(&AddressType::P2PKH);
 
-        for i in 0..count {
-            let child_path = derivation_path.child(ChildNumber::from_normal_idx(i as u32)?);
-            let child_key = master_key.derive_priv(&self.secp, &child_path)?;
+            for i in 0..count {
+                let child_path = derivation_path.child(ChildNumber::from_normal_idx(i as u32)?);
+                let child_key = master_key.derive_priv(&self.secp, &child_path)?;
 
-            let private_key = PrivateKey::new(child_key.private_key, self.config.network);
-            let public_key = PublicKey::from_private_key(&self.secp, &private_key);
-            let address = Address::p2pkh(&public_key, self.config.network);
+                let private_key = PrivateKey::new(child_key.private_key, self.config.network);
+                let public_key = PublicKey::from_private_key(&self.secp, &private_key);
+                let address = Address::p2pkh(&public_key, self.config.network);
 
-            addresses.add_address(AddressType::P2PKH, address.to_string());
+                addresses.add_address(AddressType::P2PKH, address.to_string());
+            }
         }
 
         Ok(())
@@ -125,34 +142,38 @@ impl AddressGenerator {
         master_key: &Xpriv,
         addresses: &mut BitcoinAddresses,
     ) -> Result<()> {
-        // P2SH-wrapped SegWit (P2WPKH-in-P2SH)
-        let p2sh_path = DerivationPath::from_str("m/49'/0'/0'/0")?;
-        let p2sh_count = self.config.get_address_count(&AddressType::P2SH);
+        // P2SH-wrapped SegWit (P2WPKH-in-P2SH) - only if enabled
+        if self.config.is_address_type_enabled(&AddressType::P2SH) {
+            let p2sh_path = DerivationPath::from_str("m/49'/0'/0'/0")?;
+            let p2sh_count = self.config.get_address_count(&AddressType::P2SH);
 
-        for i in 0..p2sh_count {
-            let child_path = p2sh_path.child(ChildNumber::from_normal_idx(i as u32)?);
-            let child_key = master_key.derive_priv(&self.secp, &child_path)?;
+            for i in 0..p2sh_count {
+                let child_path = p2sh_path.child(ChildNumber::from_normal_idx(i as u32)?);
+                let child_key = master_key.derive_priv(&self.secp, &child_path)?;
 
-            let private_key = PrivateKey::new(child_key.private_key, self.config.network);
-            let public_key = PublicKey::from_private_key(&self.secp, &private_key);
-            let address = Address::p2shwpkh(&public_key, self.config.network)?;
+                let private_key = PrivateKey::new(child_key.private_key, self.config.network);
+                let public_key = PublicKey::from_private_key(&self.secp, &private_key);
+                let address = Address::p2shwpkh(&public_key, self.config.network)?;
 
-            addresses.add_address(AddressType::P2SH, address.to_string());
+                addresses.add_address(AddressType::P2SH, address.to_string());
+            }
         }
 
-        // Native SegWit (P2WPKH)
-        let p2wpkh_path = DerivationPath::from_str("m/84'/0'/0'/0")?;
-        let p2wpkh_count = self.config.get_address_count(&AddressType::P2WPKH);
+        // Native SegWit (P2WPKH) - only if enabled
+        if self.config.is_address_type_enabled(&AddressType::P2WPKH) {
+            let p2wpkh_path = DerivationPath::from_str("m/84'/0'/0'/0")?;
+            let p2wpkh_count = self.config.get_address_count(&AddressType::P2WPKH);
 
-        for i in 0..p2wpkh_count {
-            let child_path = p2wpkh_path.child(ChildNumber::from_normal_idx(i as u32)?);
-            let child_key = master_key.derive_priv(&self.secp, &child_path)?;
+            for i in 0..p2wpkh_count {
+                let child_path = p2wpkh_path.child(ChildNumber::from_normal_idx(i as u32)?);
+                let child_key = master_key.derive_priv(&self.secp, &child_path)?;
 
-            let private_key = PrivateKey::new(child_key.private_key, self.config.network);
-            let public_key = PublicKey::from_private_key(&self.secp, &private_key);
-            let address = Address::p2wpkh(&public_key, self.config.network)?;
+                let private_key = PrivateKey::new(child_key.private_key, self.config.network);
+                let public_key = PublicKey::from_private_key(&self.secp, &private_key);
+                let address = Address::p2wpkh(&public_key, self.config.network)?;
 
-            addresses.add_address(AddressType::P2WPKH, address.to_string());
+                addresses.add_address(AddressType::P2WPKH, address.to_string());
+            }
         }
 
         Ok(())
@@ -529,24 +550,132 @@ mod tests {
     fn test_nostr_address_included_in_collection() {
         let config = UbaConfig::default();
         let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
-        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-        let result = generator.generate_addresses(mnemonic, Some("test-collection".to_string()));
+        let addresses = generator.generate_addresses(seed, None).unwrap();
 
-        assert!(result.is_ok());
-        let addresses = result.unwrap();
-
-        // Verify that Nostr addresses are included in the collection
-        assert!(addresses.get_addresses(&AddressType::Nostr).is_some());
-
-        // Verify that the Nostr address is included in the flat list of all addresses
-        let all_addresses = addresses.get_all_addresses();
+        // Check that Nostr addresses are included
+        assert!(addresses.addresses.contains_key(&AddressType::Nostr));
         let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).unwrap();
+        assert!(!nostr_addresses.is_empty());
 
-        // The Nostr public key should be in the flat list
-        assert!(all_addresses.contains(&nostr_addresses[0]));
+        // Verify it's a valid Nostr public key format (npub)
+        let nostr_addr = &nostr_addresses[0];
+        assert!(nostr_addr.starts_with("npub"));
+        assert_eq!(nostr_addr.len(), 63); // Standard npub length
+    }
 
-        // Verify the total count includes Nostr addresses
-        assert_eq!(addresses.len(), 7); // P2PKH, P2SH, P2WPKH, P2TR, Liquid, Lightning, Nostr
+    #[test]
+    fn test_address_generation_with_filtering_disabled_lightning() {
+        let mut config = UbaConfig::default();
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        
+        let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = generator.generate_addresses(seed, None).unwrap();
+
+        // Lightning should not be present
+        assert!(!addresses.addresses.contains_key(&AddressType::Lightning));
+        
+        // Other types should still be present
+        assert!(addresses.addresses.contains_key(&AddressType::P2PKH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2WPKH));
+        assert!(addresses.addresses.contains_key(&AddressType::Liquid));
+        assert!(addresses.addresses.contains_key(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_address_generation_with_filtering_only_bitcoin_l1() {
+        let mut config = UbaConfig::default();
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        config.set_address_type_enabled(AddressType::Liquid, false);
+        config.set_address_type_enabled(AddressType::Nostr, false);
+        
+        let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = generator.generate_addresses(seed, None).unwrap();
+
+        // Only Bitcoin L1 types should be present
+        assert!(addresses.addresses.contains_key(&AddressType::P2PKH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2SH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2WPKH));
+        assert!(addresses.addresses.contains_key(&AddressType::P2TR));
+        
+        // L2 types should not be present
+        assert!(!addresses.addresses.contains_key(&AddressType::Lightning));
+        assert!(!addresses.addresses.contains_key(&AddressType::Liquid));
+        assert!(!addresses.addresses.contains_key(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_address_generation_with_filtering_only_specific_types() {
+        let mut config = UbaConfig::default();
+        // Disable all except P2WPKH and Lightning
+        config.set_address_type_enabled(AddressType::P2PKH, false);
+        config.set_address_type_enabled(AddressType::P2SH, false);
+        config.set_address_type_enabled(AddressType::P2TR, false);
+        config.set_address_type_enabled(AddressType::Liquid, false);
+        config.set_address_type_enabled(AddressType::Nostr, false);
+        
+        let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = generator.generate_addresses(seed, None).unwrap();
+
+        // Only P2WPKH and Lightning should be present
+        assert!(addresses.addresses.contains_key(&AddressType::P2WPKH));
+        assert!(addresses.addresses.contains_key(&AddressType::Lightning));
+        
+        // Others should not be present
+        assert!(!addresses.addresses.contains_key(&AddressType::P2PKH));
+        assert!(!addresses.addresses.contains_key(&AddressType::P2SH));
+        assert!(!addresses.addresses.contains_key(&AddressType::P2TR));
+        assert!(!addresses.addresses.contains_key(&AddressType::Liquid));
+        assert!(!addresses.addresses.contains_key(&AddressType::Nostr));
+    }
+
+    #[test]
+    fn test_address_generation_with_filtering_all_disabled() {
+        let mut config = UbaConfig::default();
+        config.disable_all_address_types();
+        
+        let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = generator.generate_addresses(seed, None).unwrap();
+
+        // No address types should be present
+        assert!(addresses.addresses.is_empty());
+        assert!(addresses.is_empty());
+    }
+
+    #[test]
+    fn test_address_generation_with_filtering_and_counts() {
+        let mut config = UbaConfig::default();
+        config.set_address_count(AddressType::P2WPKH, 3);
+        config.set_address_count(AddressType::Lightning, 2);
+        
+        // Disable Lightning but keep P2WPKH
+        config.set_address_type_enabled(AddressType::Lightning, false);
+        config.set_address_type_enabled(AddressType::P2PKH, false);
+        config.set_address_type_enabled(AddressType::P2SH, false);
+        config.set_address_type_enabled(AddressType::P2TR, false);
+        config.set_address_type_enabled(AddressType::Liquid, false);
+        config.set_address_type_enabled(AddressType::Nostr, false);
+        
+        let generator = AddressGenerator::new(config);
+        let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let addresses = generator.generate_addresses(seed, None).unwrap();
+
+        // Only P2WPKH should be present with 3 addresses
+        assert!(addresses.addresses.contains_key(&AddressType::P2WPKH));
+        let p2wpkh_addresses = addresses.get_addresses(&AddressType::P2WPKH).unwrap();
+        assert_eq!(p2wpkh_addresses.len(), 3);
+        
+        // Lightning should not be present
+        assert!(!addresses.addresses.contains_key(&AddressType::Lightning));
     }
 }

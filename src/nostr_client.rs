@@ -178,6 +178,151 @@ impl NostrClient {
         Ok(event_id.to_hex())
     }
 
+    /// Update Bitcoin addresses by creating a new event that replaces the old one
+    /// 
+    /// Since Nostr events are immutable, this creates a new event with updated content
+    /// and includes a tag referencing the original event as "replaced"
+    pub async fn update_addresses(
+        &self,
+        original_event_id: &str,
+        updated_addresses: &BitcoinAddresses,
+        encryption_key: Option<&[u8; 32]>,
+    ) -> Result<String> {
+        // First, verify the original event exists and we can access it
+        self.verify_event_exists(original_event_id).await?;
+
+        // Validate the updated addresses
+        self.validate_address_update(updated_addresses)?;
+
+        // Serialize addresses to JSON
+        let json_content = serde_json::to_string(updated_addresses)?;
+
+        // Encrypt if key is provided
+        let content = encrypt_if_enabled(&json_content, encryption_key)?;
+
+        // Create a custom event for UBA data
+        let kind = Kind::Custom(30000); // Parametrized replaceable event
+
+        let mut tags = Vec::new();
+
+        // Add a tag to identify this as UBA data
+        tags.push(
+            Tag::parse(&["uba", "bitcoin-addresses"])
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+        );
+
+        // Add a tag to reference the original event being replaced
+        tags.push(
+            Tag::parse(&["replaces", original_event_id])
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+        );
+
+        // Add encryption indicator if encrypted
+        if encryption_key.is_some() {
+            tags.push(
+                Tag::parse(&["encrypted", "true"])
+                    .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+            );
+        }
+
+        // Add metadata tags if available
+        if let Some(metadata) = &updated_addresses.metadata {
+            if let Some(label) = &metadata.label {
+                tags.push(
+                    Tag::parse(&["label", label])
+                        .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+                );
+            }
+        }
+
+        // Add version tag
+        tags.push(
+            Tag::parse(&["version", &updated_addresses.version.to_string()])
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+        );
+
+        // Add update timestamp
+        tags.push(
+            Tag::parse(&["updated_at", &updated_addresses.created_at.to_string()])
+                .map_err(|e| UbaError::NostrRelay(e.to_string()))?,
+        );
+
+        let event = EventBuilder::new(kind, content, tags)
+            .to_event(&self.keys)
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        // Publish the event with timeout
+        let event_id = timeout(self.timeout_duration, self.client.send_event(event))
+            .await
+            .map_err(|_| UbaError::Timeout)?
+            .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        Ok(event_id.to_hex())
+    }
+
+    /// Verify that an event exists and is accessible
+    async fn verify_event_exists(&self, event_id_hex: &str) -> Result<()> {
+        let event_id = EventId::from_hex(event_id_hex)
+            .map_err(|e| UbaError::InvalidUbaFormat(format!("Invalid event ID: {}", e)))?;
+
+        // Create a filter to find the specific event
+        let filter = Filter::new()
+            .id(event_id)
+            .kind(Kind::Custom(30000))
+            .limit(1);
+
+        // Try to retrieve the event
+        let events = timeout(
+            self.timeout_duration,
+            self.client
+                .get_events_of(vec![filter], Some(self.timeout_duration)),
+        )
+        .await
+        .map_err(|_| UbaError::Timeout)?
+        .map_err(|e| UbaError::NostrRelay(e.to_string()))?;
+
+        if events.is_empty() {
+            return Err(UbaError::EventNotFound(format!(
+                "Event with ID {} not found",
+                event_id_hex
+            )));
+        }
+
+        Ok(())
+    }
+
+    /// Validate the updated address data
+    fn validate_address_update(&self, addresses: &BitcoinAddresses) -> Result<()> {
+        // Check if addresses collection is not empty
+        if addresses.is_empty() {
+            return Err(UbaError::UpdateValidation(
+                "Updated addresses collection cannot be empty".to_string(),
+            ));
+        }
+
+        // Validate that at least one address type has addresses
+        let has_addresses = addresses.addresses.values().any(|addrs| !addrs.is_empty());
+        if !has_addresses {
+            return Err(UbaError::UpdateValidation(
+                "At least one address type must contain addresses".to_string(),
+            ));
+        }
+
+        // Validate individual addresses format (basic validation)
+        for (addr_type, addr_list) in &addresses.addresses {
+            for addr in addr_list {
+                if addr.trim().is_empty() {
+                    return Err(UbaError::UpdateValidation(format!(
+                        "Empty address found in {:?} address type",
+                        addr_type
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Retrieve Bitcoin addresses from a Nostr event ID
     pub async fn retrieve_addresses(&self, event_id_hex: &str) -> Result<BitcoinAddresses> {
         let event_id = EventId::from_hex(event_id_hex)
@@ -345,20 +490,87 @@ mod tests {
     #[test]
     fn test_bitcoin_addresses_serialization() {
         let mut addresses = BitcoinAddresses::new();
-        addresses.add_address(
-            AddressType::P2PKH,
-            "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2".to_string(),
-        );
-        addresses.add_address(
-            AddressType::P2WPKH,
-            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string(),
-        );
+        addresses.add_address(AddressType::P2PKH, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa".to_string());
+        addresses.add_address(AddressType::P2WPKH, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string());
 
-        let json = serde_json::to_string(&addresses);
-        assert!(json.is_ok());
+        let json = serde_json::to_string(&addresses).unwrap();
+        let deserialized: BitcoinAddresses = serde_json::from_str(&json).unwrap();
 
-        let deserialized: serde_json::Result<BitcoinAddresses> =
-            serde_json::from_str(&json.unwrap());
-        assert!(deserialized.is_ok());
+        assert_eq!(addresses.len(), deserialized.len());
+        assert_eq!(
+            addresses.get_addresses(&AddressType::P2PKH),
+            deserialized.get_addresses(&AddressType::P2PKH)
+        );
+    }
+
+    #[test]
+    fn test_validate_address_update_empty_collection() {
+        let client = NostrClient::new(10).unwrap();
+        let empty_addresses = BitcoinAddresses::new();
+        
+        let result = client.validate_address_update(&empty_addresses);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
+    }
+
+    #[test]
+    fn test_validate_address_update_no_addresses_in_types() {
+        let client = NostrClient::new(10).unwrap();
+        let mut addresses = BitcoinAddresses::new();
+        // Add empty address lists
+        addresses.addresses.insert(AddressType::P2PKH, vec![]);
+        addresses.addresses.insert(AddressType::Lightning, vec![]);
+        
+        let result = client.validate_address_update(&addresses);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
+    }
+
+    #[test]
+    fn test_validate_address_update_empty_address_string() {
+        let client = NostrClient::new(10).unwrap();
+        let mut addresses = BitcoinAddresses::new();
+        addresses.add_address(AddressType::P2PKH, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa".to_string());
+        addresses.add_address(AddressType::P2PKH, "".to_string()); // Empty address
+        
+        let result = client.validate_address_update(&addresses);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
+    }
+
+    #[test]
+    fn test_validate_address_update_whitespace_only_address() {
+        let client = NostrClient::new(10).unwrap();
+        let mut addresses = BitcoinAddresses::new();
+        addresses.add_address(AddressType::P2PKH, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa".to_string());
+        addresses.add_address(AddressType::P2PKH, "   ".to_string()); // Whitespace only
+        
+        let result = client.validate_address_update(&addresses);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
+    }
+
+    #[test]
+    fn test_validate_address_update_valid_addresses() {
+        let client = NostrClient::new(10).unwrap();
+        let mut addresses = BitcoinAddresses::new();
+        addresses.add_address(AddressType::P2PKH, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa".to_string());
+        addresses.add_address(AddressType::P2WPKH, "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string());
+        addresses.add_address(AddressType::Lightning, "lnbc1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq8rkx3yf5tcsyz3d73gafnh3cax9rn449d9p5uxz9ezhhypd0elx87sjle52x86fux2ypatgddc6k63n7erqz25le42c4u4ecky03ylcqca784w".to_string());
+        
+        let result = client.validate_address_update(&addresses);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_address_update_mixed_valid_invalid() {
+        let client = NostrClient::new(10).unwrap();
+        let mut addresses = BitcoinAddresses::new();
+        addresses.add_address(AddressType::P2PKH, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa".to_string());
+        addresses.add_address(AddressType::Lightning, "".to_string()); // Invalid empty
+        
+        let result = client.validate_address_update(&addresses);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), UbaError::UpdateValidation(_)));
     }
 }

@@ -221,6 +221,53 @@ for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightni
 }
 ```
 
+### UBA Update Functionality
+
+Update existing UBAs with new address configurations or data. Since Nostr events are immutable, updates create new events that reference the original.
+
+```rust
+use uba::{update_uba, UbaConfig, AddressType};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let original_event_id = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+    let seed = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let relays = vec!["wss://relay.damus.io".to_string()];
+    
+    let mut config = UbaConfig::default();
+    // Update configuration - disable Lightning for this update
+    config.set_address_type_enabled(AddressType::Lightning, false);
+    config.set_bitcoin_l1_counts(5); // Increase Bitcoin L1 addresses to 5 each
+    
+    let updated_uba = update_uba(original_event_id, seed, &relays, config).await?;
+    println!("Updated UBA: {}", updated_uba);
+    
+    Ok(())
+}
+```
+
+#### Address Filtering
+
+Control which address types to include in your UBA:
+
+```rust
+let mut config = UbaConfig::default();
+
+// Individual address type control
+config.set_address_type_enabled(AddressType::P2WPKH, true);
+config.set_address_type_enabled(AddressType::Lightning, false);
+
+// Bulk operations
+config.enable_bitcoin_l1();     // Enable P2PKH, P2SH, P2WPKH, P2TR
+config.disable_bitcoin_l1();    // Disable all Bitcoin L1 types
+config.enable_all_address_types();  // Enable all types
+config.disable_all_address_types(); // Disable all types
+
+// Check enabled types
+let enabled_types = config.get_enabled_address_types();
+println!("Enabled: {:?}", enabled_types);
+```
+
 ## 🏗️ Architecture
 
 ### How UBA Works
@@ -320,6 +367,7 @@ The library includes comprehensive examples:
 - **Encryption Demo**: Offline encryption demonstration
 - **Show Addresses**: Display addresses across all Bitcoin layers
 - **Retrieve from Nostr ID**: Retrieve UBA data from a known Nostr event ID
+- **Update UBA Demo**: Address filtering and UBA update functionality
 
 ```bash
 # Multi-layer UBA example
@@ -340,6 +388,9 @@ cargo run --example show_addresses
 
 # Retrieve from Nostr ID
 cargo run --example retrieve_from_nostr_id
+
+# UBA update and address filtering demo
+cargo run --example update_uba_demo
 ```
 
 ## 🎯 Use Cases
@@ -375,6 +426,8 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Configurable address counts per layer
 - [x] Comprehensive examples and documentation
 - [x] Default address count optimization (1 per type)
+- [x] Address filtering configuration (granular control over address types)
+- [x] UBA update functionality (update existing UBAs with new configurations)
 
 ### 🚨 Production Readiness (Critical)
 - [ ] Remove all `.unwrap()` calls and implement proper error handling

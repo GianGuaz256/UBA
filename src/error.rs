@@ -75,6 +75,18 @@ pub enum UbaError {
     /// Configuration error
     #[error("Configuration error: {0}")]
     Config(String),
+
+    /// Event not found error
+    #[error("Event not found: {0}")]
+    EventNotFound(String),
+
+    /// Update validation error
+    #[error("Update validation error: {0}")]
+    UpdateValidation(String),
+
+    /// Invalid update data
+    #[error("Invalid update data: {0}")]
+    InvalidUpdateData(String),
 }
 
 impl From<bitcoin::address::Error> for UbaError {
