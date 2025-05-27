@@ -84,6 +84,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Lightning Node IDs",
                             );
 
+                            // Display Nostr addresses
+                            println!("\n🔑 Nostr Addresses:");
+                            display_addresses(
+                                &bitcoin_addresses,
+                                &AddressType::Nostr,
+                                "Nostr Public Keys (npub)",
+                            );
+
                             // Show metadata
                             if let Some(metadata) = &bitcoin_addresses.metadata {
                                 println!("\n📊 Address Collection Metadata:");
@@ -136,6 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   📍 Bitcoin L1: Legacy, SegWit-wrapped, Native SegWit, Taproot");
     println!("   💧 Liquid: Sidechain addresses for faster, private transactions");
     println!("   ⚡ Lightning: Node IDs for Lightning Network payments");
+    println!("   �� Nostr: Public keys in npub format for decentralized social networking");
 
     println!("\n✨ Multi-layer UBA example completed!");
     Ok(())
@@ -183,6 +192,7 @@ fn offline_address_generation_example() -> Result<(), Box<dyn std::error::Error>
                 AddressType::P2TR,
                 AddressType::Liquid,
                 AddressType::Lightning,
+                AddressType::Nostr,
             ] {
                 if let Some(addrs) = addresses.get_addresses(&address_type) {
                     println!("   {:?}: {} addresses", address_type, addrs.len());

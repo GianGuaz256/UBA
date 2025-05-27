@@ -6,7 +6,7 @@
   <img src="docs/images/uba.png" alt="UBA - Unified Bitcoin Address" width="100%"/>
 </div>
 
-A Rust library that enables the creation and retrieval of **Unified Bitcoin Addresses (UBA)** - single, concise strings that unify a user's Bitcoin addresses across **all Bitcoin layers**: Layer 1 (L1), Liquid sidechain, and Lightning Network using Nostr relays for decentralized storage.
+A Rust library that enables the creation and retrieval of **Unified Bitcoin Addresses (UBA)** - single, concise strings that unify a user's Bitcoin addresses across **all Bitcoin layers**: Layer 1 (L1), Liquid sidechain, Lightning Network, and Nostr public keys using Nostr relays for decentralized storage.
 
 ## 🎯 What is a UBA?
 
@@ -24,11 +24,11 @@ UBA:<NostrEventID>&label=<optional-label>
 
 ## 🌟 Key Features
 
-- **🔗 Truly Unified**: Single string for **ALL** Bitcoin layers (L1, Liquid, Lightning)
+- **🔗 Truly Unified**: Single string for **ALL** Bitcoin layers (L1, Liquid, Lightning, Nostr)
 - **📱 QR-Friendly**: Short strings perfect for QR codes
 - **🔒 Privacy-Preserving**: Leverages Nostr's decentralized architecture
 - **🛡️ Secure**: No centralized servers, data stored across Nostr relays
-- **⚡ Multi-Layer**: Supports Bitcoin L1, Liquid sidechain, and Lightning Network
+- **⚡ Multi-Layer**: Supports Bitcoin L1, Liquid sidechain, Lightning Network, and Nostr
 - **🔐 Optional Encryption**: ChaCha20Poly1305 encryption for sensitive data
 - **📡 Public Relay Network**: Curated list of reliable Nostr relays
 - **⚙️ Configurable**: Flexible address counts and custom relay support
@@ -78,6 +78,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(lightning_ids) = addresses.get_addresses(&AddressType::Lightning) {
         println!("Lightning Node IDs: {:?}", lightning_ids);
+    }
+    if let Some(nostr_pubkeys) = addresses.get_addresses(&AddressType::Nostr) {
+        println!("Nostr Public Keys: {:?}", nostr_pubkeys);
     }
     
     Ok(())
@@ -211,7 +214,7 @@ let generator = AddressGenerator::new(config);
 let addresses = generator.generate_addresses(seed, Some("offline".to_string()))?;
 
 println!("Total addresses: {}", addresses.len());
-for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightning] {
+for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightning, AddressType::Nostr] {
     if let Some(addrs) = addresses.get_addresses(&addr_type) {
         println!("{:?}: {} addresses", addr_type, addrs.len());
     }
@@ -222,7 +225,7 @@ for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightni
 
 ### How UBA Works
 
-1. **Multi-Layer Address Generation**: Generate addresses from seed using standard derivation paths for Bitcoin L1, Liquid, and Lightning
+1. **Multi-Layer Address Generation**: Generate addresses from seed using standard derivation paths for Bitcoin L1, Liquid, Lightning, and Nostr
 2. **Nostr Publishing**: Serialize all addresses as JSON and publish to Nostr relays as an event
 3. **UBA Creation**: Create a UBA string using the Nostr event ID
 4. **Layer-Aware Retrieval**: Parse UBA, fetch the event from relays, and deserialize addresses with layer separation
@@ -241,6 +244,9 @@ for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightni
 #### ⚡ Lightning Network
 - **Node IDs**: Lightning Network node public keys for channel establishment and payments
 
+#### 🔑 Nostr Protocol
+- **Public Keys (npub)**: Nostr public keys in standard npub format for decentralized social networking
+
 ### Derivation Paths
 
 - **Bitcoin Legacy (P2PKH)**: `m/44'/0'/0'/0`
@@ -249,6 +255,7 @@ for addr_type in [AddressType::P2WPKH, AddressType::Liquid, AddressType::Lightni
 - **Bitcoin Taproot (P2TR)**: `m/86'/0'/0'/0`
 - **Liquid Sidechain**: `m/84'/1776'/0'/0` (1776 = Liquid coin type)
 - **Lightning Network**: `m/1017'/0'/0'` (1017 = Lightning node identity)
+- **Nostr Protocol**: `m/44'/1237'/0'/0` (1237 = Proposed Nostr coin type)
 
 ## ⚙️ Configuration
 
@@ -260,7 +267,7 @@ let mut config = UbaConfig::default();
 // Basic configuration
 config.network = Network::Bitcoin;           // Bitcoin network
 config.relay_timeout = 10;                   // Relay timeout in seconds
-config.max_addresses_per_type = 5;           // Default addresses per type
+config.max_addresses_per_type = 1;           // Default addresses per type (changed from 5 to 1)
 
 // Encryption configuration (optional)
 let encryption_key = derive_encryption_key("my-passphrase", None);
@@ -338,10 +345,11 @@ cargo run --example retrieve_from_nostr_id
 ## 🎯 Use Cases
 
 - **Universal Bitcoin Wallets**: Single identifier for all Bitcoin layers
-- **Payment Processors**: Accept payments across L1, Liquid, and Lightning
+- **Payment Processors**: Accept payments across L1, Liquid, Lightning, and Nostr
 - **Bitcoin Services**: Unified address sharing for exchanges, merchants
 - **Privacy Tools**: Decentralized address storage without central servers
 - **Developer Tools**: SDK for Bitcoin applications across all layers
+- **Nostr Applications**: Unified identity across Bitcoin and Nostr ecosystems
 
 ## 🤝 Contributing
 
@@ -361,10 +369,12 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [x] Bitcoin Layer 1 (Legacy, SegWit, Taproot)
 - [x] Liquid sidechain support
 - [x] Lightning Network node IDs
+- [x] Nostr public keys (npub format)
 - [x] ChaCha20Poly1305 encryption support
 - [x] Public relay network with custom relay support
 - [x] Configurable address counts per layer
 - [x] Comprehensive examples and documentation
+- [x] Default address count optimization (1 per type)
 
 ### 🚨 Production Readiness (Critical)
 - [ ] Remove all `.unwrap()` calls and implement proper error handling
@@ -383,6 +393,8 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 - [ ] Mobile SDK (React Native/Flutter)
 - [ ] Hardware wallet integration
 - [ ] Multi-signature address support
+- [ ] Nostr event signing and verification
+- [ ] NIP-05 identifier integration
 
 ## 🔗 Related Projects
 
@@ -401,4 +413,4 @@ This library is experimental and should be used with caution in production envir
 
 ---
 
-**Made with ❤️ for the complete Bitcoin ecosystem** 
+**Made with ❤️ for the complete Bitcoin ecosystem**

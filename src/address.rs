@@ -17,6 +17,9 @@ use elements::Address as LiquidAddress;
 // Lightning support
 use secp256k1::PublicKey as Secp256k1PublicKey;
 
+// Nostr support
+use nostr::{self, ToBech32};
+
 /// Address generator for creating Bitcoin addresses from seeds
 pub struct AddressGenerator {
     config: UbaConfig,
@@ -64,6 +67,9 @@ impl AddressGenerator {
         // Generate L2 addresses
         self.generate_liquid_addresses(&master_key, &mut addresses)?;
         self.generate_lightning_addresses(&master_key, &mut addresses)?;
+
+        // Generate Nostr public key
+        self.generate_nostr_addresses(&master_key, &mut addresses)?;
 
         Ok(addresses)
     }
@@ -288,6 +294,44 @@ impl AddressGenerator {
         Ok(())
     }
 
+    /// Generate Nostr public key
+    fn generate_nostr_addresses(
+        &self,
+        master_key: &Xpriv,
+        addresses: &mut BitcoinAddresses,
+    ) -> Result<()> {
+        // Use a specific derivation path for Nostr keys: m/44'/1237'/0'/0
+        // 1237 is a proposed coin type for Nostr (not officially assigned)
+        let derivation_path = DerivationPath::from_str("m/44'/1237'/0'/0")?;
+        let count = self.config.get_address_count(&AddressType::Nostr);
+
+        for i in 0..count {
+            let child_path = derivation_path.child(ChildNumber::from_normal_idx(i as u32)?);
+            let child_key = master_key.derive_priv(&self.secp, &child_path)?;
+
+            // Convert the private key to a Nostr public key
+            // Nostr uses secp256k1 keys, same as Bitcoin
+            let nostr_secret_key = nostr::SecretKey::from_slice(
+                &child_key.private_key.secret_bytes(),
+            )
+            .map_err(|e| {
+                UbaError::AddressGeneration(format!("Failed to create Nostr secret key: {}", e))
+            })?;
+
+            let nostr_keys = nostr::Keys::new(nostr_secret_key);
+            let nostr_public_key = nostr_keys.public_key();
+
+            // Convert to npub format (Bech32-encoded public key)
+            let npub_address = nostr_public_key.to_bech32().map_err(|e| {
+                UbaError::AddressGeneration(format!("Failed to create npub address: {}", e))
+            })?;
+
+            addresses.add_address(AddressType::Nostr, npub_address);
+        }
+
+        Ok(())
+    }
+
     /// Get the derivation paths used for address generation
     fn get_derivation_paths(&self) -> Vec<String> {
         vec![
@@ -297,6 +341,7 @@ impl AddressGenerator {
             "m/86'/0'/0'/0".to_string(),    // Taproot
             "m/84'/1776'/0'/0".to_string(), // Liquid
             "m/1017'/0'/0'".to_string(),    // Lightning
+            "m/44'/1237'/0'/0".to_string(), // Nostr
         ]
     }
 }
@@ -335,22 +380,27 @@ mod tests {
         assert!(addresses.get_addresses(&AddressType::P2TR).is_some());
         assert!(addresses.get_addresses(&AddressType::Liquid).is_some());
         assert!(addresses.get_addresses(&AddressType::Lightning).is_some());
+        assert!(addresses.get_addresses(&AddressType::Nostr).is_some());
 
-        // Verify we have the expected number of addresses per type
+        // Verify we have the expected number of addresses per type (default is now 1)
         assert_eq!(
             addresses.get_addresses(&AddressType::P2PKH).unwrap().len(),
-            5
+            1
         );
         assert_eq!(
             addresses.get_addresses(&AddressType::Liquid).unwrap().len(),
-            5
+            1
         );
         assert_eq!(
             addresses
                 .get_addresses(&AddressType::Lightning)
                 .unwrap()
                 .len(),
-            5
+            1
+        );
+        assert_eq!(
+            addresses.get_addresses(&AddressType::Nostr).unwrap().len(),
+            1
         );
     }
 
@@ -404,6 +454,34 @@ mod tests {
     }
 
     #[test]
+    fn test_nostr_address_generation() {
+        let config = UbaConfig::default();
+        let generator = AddressGenerator::new(config);
+
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let result = generator.generate_addresses(mnemonic, None);
+
+        assert!(result.is_ok());
+        let addresses = result.unwrap();
+
+        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).unwrap();
+        assert!(!nostr_addresses.is_empty());
+
+        // Nostr public keys should be in npub format (Bech32-encoded)
+        for addr in nostr_addresses {
+            assert!(
+                addr.starts_with("npub1"),
+                "Nostr public key should start with 'npub1', got: {}",
+                addr
+            );
+            assert!(
+                addr.len() > 10,
+                "Nostr npub address should be reasonably long"
+            );
+        }
+    }
+
+    #[test]
     fn test_invalid_seed() {
         let config = UbaConfig::default();
         let generator = AddressGenerator::new(config);
@@ -441,5 +519,34 @@ mod tests {
             addresses1.get_addresses(&AddressType::Lightning),
             addresses2.get_addresses(&AddressType::Lightning)
         );
+        assert_eq!(
+            addresses1.get_addresses(&AddressType::Nostr),
+            addresses2.get_addresses(&AddressType::Nostr)
+        );
+    }
+
+    #[test]
+    fn test_nostr_address_included_in_collection() {
+        let config = UbaConfig::default();
+        let generator = AddressGenerator::new(config);
+
+        let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let result = generator.generate_addresses(mnemonic, Some("test-collection".to_string()));
+
+        assert!(result.is_ok());
+        let addresses = result.unwrap();
+
+        // Verify that Nostr addresses are included in the collection
+        assert!(addresses.get_addresses(&AddressType::Nostr).is_some());
+
+        // Verify that the Nostr address is included in the flat list of all addresses
+        let all_addresses = addresses.get_all_addresses();
+        let nostr_addresses = addresses.get_addresses(&AddressType::Nostr).unwrap();
+
+        // The Nostr public key should be in the flat list
+        assert!(all_addresses.contains(&nostr_addresses[0]));
+
+        // Verify the total count includes Nostr addresses
+        assert_eq!(addresses.len(), 7); // P2PKH, P2SH, P2WPKH, P2TR, Liquid, Lightning, Nostr
     }
 }

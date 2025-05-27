@@ -22,9 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Demo with default configuration (5 addresses per type)
+/// Demo with default configuration (1 address per type)
 fn demo_default_config(seed: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("\n🔧 SCENARIO 1: Default Configuration (5 addresses per type)");
+    println!("\n🔧 SCENARIO 1: Default Configuration (1 address per type)");
     println!("{}", "=".repeat(60));
 
     let config = UbaConfig::default();
@@ -51,15 +51,17 @@ fn demo_custom_counts(seed: &str) -> Result<(), Box<dyn std::error::Error>> {
     config.set_address_count(AddressType::P2TR, 3); // 3 Taproot addresses
     config.set_address_count(AddressType::Liquid, 7); // 7 Liquid addresses
     config.set_address_count(AddressType::Lightning, 2); // 2 Lightning node IDs
-                                                         // P2SH will use default (5)
+    config.set_address_count(AddressType::Nostr, 1); // 1 Nostr public key
+                                                     // P2SH will use default (1)
 
     println!("Configuration:");
     println!("   P2PKH (Legacy): 10 addresses");
-    println!("   P2SH (SegWit-wrapped): 5 addresses (default)");
+    println!("   P2SH (SegWit-wrapped): 1 address (default)");
     println!("   P2WPKH (Native SegWit): 15 addresses");
     println!("   P2TR (Taproot): 3 addresses");
     println!("   Liquid: 7 addresses");
     println!("   Lightning: 2 addresses");
+    println!("   Nostr: 1 address");
 
     let generator = AddressGenerator::new(config);
     let addresses = generator.generate_addresses(seed, Some("custom-counts".to_string()))?;
@@ -81,11 +83,13 @@ fn demo_layer_specific_config(seed: &str) -> Result<(), Box<dyn std::error::Erro
     config.set_bitcoin_l1_counts(8); // 8 addresses for all Bitcoin L1 types
     config.set_address_count(AddressType::Liquid, 1); // Just 1 Liquid address
     config.set_address_count(AddressType::Lightning, 1); // Just 1 Lightning node ID
+    config.set_address_count(AddressType::Nostr, 1); // Just 1 Nostr public key
 
     println!("Configuration (Bitcoin L1 focused):");
     println!("   All Bitcoin L1 types: 8 addresses each");
     println!("   Liquid: 1 address");
     println!("   Lightning: 1 address");
+    println!("   Nostr: 1 address");
 
     let generator = AddressGenerator::new(config);
     let addresses = generator.generate_addresses(seed, Some("l1-focused".to_string()))?;
@@ -111,6 +115,7 @@ fn display_address_summary(addresses: &uba::BitcoinAddresses) {
         (AddressType::P2TR, "Bitcoin Taproot (P2TR)"),
         (AddressType::Liquid, "Liquid Sidechain"),
         (AddressType::Lightning, "Lightning Network"),
+        (AddressType::Nostr, "Nostr Public Keys (npub)"),
     ];
 
     for (addr_type, type_name) in types {
@@ -130,6 +135,7 @@ fn show_sample_addresses(addresses: &uba::BitcoinAddresses) {
         (AddressType::P2TR, "Taproot", "bc1p..."),
         (AddressType::Liquid, "Liquid", "lq1..."),
         (AddressType::Lightning, "Lightning", "hex..."),
+        (AddressType::Nostr, "Nostr", "npub1..."),
     ];
 
     for (addr_type, type_name, prefix) in types {

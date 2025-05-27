@@ -54,6 +54,7 @@ impl UbaConfig {
         self.set_bitcoin_l1_counts(count);
         self.set_address_count(AddressType::Liquid, count);
         self.set_address_count(AddressType::Lightning, count);
+        self.set_address_count(AddressType::Nostr, count);
     }
 
     /// Set encryption key from a hex string
@@ -145,7 +146,7 @@ impl Default for UbaConfig {
             encrypt_data: false,
             encryption_key: None,
             relay_timeout: 10,
-            max_addresses_per_type: 5,
+            max_addresses_per_type: 1,
             address_counts: HashMap::new(),
             custom_relays: None,
         }
@@ -167,6 +168,8 @@ pub enum AddressType {
     Lightning,
     /// Liquid sidechain address
     Liquid,
+    /// Nostr public key
+    Nostr,
 }
 
 impl AddressType {
@@ -179,6 +182,7 @@ impl AddressType {
             AddressType::P2TR => "Taproot Bitcoin address (P2TR)",
             AddressType::Lightning => "Lightning Network address/invoice",
             AddressType::Liquid => "Liquid sidechain address",
+            AddressType::Nostr => "Nostr public key (npub format)",
         }
     }
 }
